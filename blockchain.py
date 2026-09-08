@@ -20,24 +20,33 @@ class Blockchain:
         self.pending_transactions.append(transaction)
 
     def mine_pending_transactions(self, miner_address):
-        # 1. Add mining reward transaction (sender is None / System)
         reward_tx = Transaction(sender=None, recipient=miner_address, amount=self.mining_reward)
         self.pending_transactions.append(reward_tx)
 
-        # 2. Bundle all pending transactions into a new block
         latest_block = self.get_latest_block()
         new_block = Block(
             index=latest_block.index + 1,
             previous_hash=latest_block.hash,
             transactions=self.pending_transactions
         )
-
-        # 3. Mine the block and append to chain
         new_block.mine_block(self.difficulty)
         self.chain.append(new_block)
 
-        # 4. Clear pending transactions
         self.pending_transactions = []
+
+    def get_balance_of_address(self, address):
+        balance = 0
+        for block in self.chain:
+            for tx in block.transactions:
+                sender = tx.sender if hasattr(tx, "sender") else tx.get("sender")
+                recipient = tx.recipient if hasattr(tx, "recipient") else tx.get("recipient")
+                amount = tx.amount if hasattr(tx, "amount") else tx.get("amount")
+
+                if sender == address:
+                    balance -= amount
+                if recipient == address:
+                    balance += amount
+        return balance
 
     def is_chain_valid(self):
         target = "0" * self.difficulty
