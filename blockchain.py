@@ -4,10 +4,10 @@ from block import Block
 from transaction import Transaction
 
 class Blockchain:
-    ADJUSTMENT_INTERVAL = 5       # Difficulty adjustment every 5 blocks
-    TARGET_TIME_PER_BLOCK = 2     # Target seconds per block
-    HALVING_INTERVAL = 5          # Mining reward halves every 5 blocks
-    INITIAL_REWARD = 50           # Initial mining reward
+    ADJUSTMENT_INTERVAL = 5
+    TARGET_TIME_PER_BLOCK = 2
+    HALVING_INTERVAL = 5
+    INITIAL_REWARD = 50
 
     def __init__(self, initial_difficulty=2):
         self.difficulty = initial_difficulty
@@ -16,8 +16,6 @@ class Blockchain:
 
     @property
     def current_mining_reward(self):
-        # Calculate halving based on current chain length
-        # Halvings count: number of times 5 blocks have passed
         halvings = len(self.chain) // self.HALVING_INTERVAL
         reward = self.INITIAL_REWARD / (2 ** halvings)
         return round(reward, 4)
@@ -66,10 +64,16 @@ class Blockchain:
             if sender_balance < transaction.amount:
                 raise ValueError("Insufficient balance!")
 
+        tx_hash = transaction.calculate_hash()
+        for p_tx in self.pending_transactions:
+            if p_tx.calculate_hash() == tx_hash:
+                return False
+
         self.pending_transactions.append(transaction)
+        return True
 
     def mine_pending_transactions(self, miner_address):
-        # Dynamically calculate reward according to Halving rules
+        start_t = time.time()
         reward_amount = self.current_mining_reward
         reward_tx = Transaction(sender=None, recipient=miner_address, amount=reward_amount)
         self.pending_transactions.append(reward_tx)
@@ -84,10 +88,64 @@ class Blockchain:
             transactions=self.pending_transactions,
             difficulty=self.difficulty
         )
-        new_block.mine_block(self.difficulty)
-        self.chain.append(new_block)
 
+        # Collect sampling logs during mining
+        sample_logs = []
+        target = "0" * self.difficulty
+        while not new_block.hash.startswith(target):
+            if new_block.nonce < 3 or new_block.nonce % 2000 == 0:
+                sample_logs.append({"nonce": new_block.nonce, "hash": new_block.hash[:16] + "..."})
+            new_block.nonce += 1
+            new_block.hash = new_block.calculate_hash()
+
+        duration = time.time() - start_t
+        self.chain.append(new_block)
         self.pending_transactions = []
+
+        mining_stats = {
+            "block_index": new_block.index,
+            "difficulty": new_block.difficulty,
+            "target": target,
+            "winning_nonce": new_block.nonce,
+            "winning_hash": new_block.hash,
+            "duration": round(duration, 3),
+            "samples": sample_logs[:5]
+        }
+        return new_block, mining_stats
+
+    def add_received_block(self, block):
+        latest = self.get_latest_block()
+
+        if block.previous_hash != latest.hash:
+            return False
+
+        if block.index != latest.index + 1:
+            return False
+
+        if block.hash != block.calculate_hash():
+            return False
+
+        target = "0" * block.difficulty
+        if not block.hash.startswith(target):
+            return False
+
+        for tx in block.transactions:
+            if hasattr(tx, "is_valid") and not tx.is_valid():
+                return False
+
+        self.chain.append(block)
+        self.difficulty = block.difficulty
+
+        confirmed_hashes = {
+            (tx if hasattr(tx, "calculate_hash") else Transaction(tx["sender"], tx["recipient"], tx["amount"])).calculate_hash()
+            for tx in block.transactions
+        }
+        self.pending_transactions = [
+            tx for tx in self.pending_transactions
+            if tx.calculate_hash() not in confirmed_hashes
+        ]
+
+        return True
 
     def get_balance_of_address(self, address):
         balance = 0
@@ -128,8 +186,28 @@ class Blockchain:
 
     def replace_chain(self, new_chain):
         if len(new_chain) > len(self.chain) and self.is_chain_valid(new_chain):
+            new_confirmed_hashes = set()
+            for b in new_chain:
+                for tx in b.transactions:
+                    tx_obj = tx if hasattr(tx, "calculate_hash") else Transaction(tx["sender"], tx["recipient"], tx["amount"])
+                    new_confirmed_hashes.add(tx_obj.calculate_hash())
+
+            recovered_txs = []
+            for b in self.chain[1:]:
+                for tx in b.transactions:
+                    tx_obj = tx if hasattr(tx, "calculate_hash") else Transaction(tx["sender"], tx["recipient"], tx["amount"])
+                    if tx_obj.sender is not None and tx_obj.calculate_hash() not in new_confirmed_hashes:
+                        recovered_txs.append(tx_obj)
+
             self.chain = new_chain
             self.difficulty = self.chain[-1].difficulty
+
+            for r_tx in recovered_txs:
+                try:
+                    self.add_transaction(r_tx)
+                except Exception:
+                    pass
+
             return True
         return False
 

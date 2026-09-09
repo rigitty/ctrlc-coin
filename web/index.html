@@ -1,0 +1,92 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CtrlC-Coin Blockchain Explorer</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="container">
+    <header>
+        <div>
+            <h1>🪙 CtrlC-Coin Explorer</h1>
+            <small style="color: #94a3b8;">Production-patterned Pure Python Blockchain Node</small>
+        </div>
+        <div>
+            <button class="btn-mine" onclick="mineBlock()">⛏️ Mine Block</button>
+            <button class="btn-purple" onclick="resolveConsensus()">🔄 Sync Chain (Consensus)</button>
+        </div>
+    </header>
+
+    <div class="stats">
+        <div class="stat-card"><div class="stat-label">Total Blocks</div><div class="stat-val" id="stat-blocks">-</div></div>
+        <div class="stat-card"><div class="stat-label">Current Difficulty</div><div class="stat-val" id="stat-diff">-</div></div>
+        <div class="stat-card"><div class="stat-label">Mining Reward</div><div class="stat-val" id="stat-reward">-</div></div>
+        <div class="stat-card"><div class="stat-label">Pending Mempool TXs</div><div class="stat-val" id="stat-pending" style="color: var(--accent);">-</div></div>
+    </div>
+
+    <!-- Live Mining Activity Log -->
+    <div class="panel" style="margin-bottom: 24px; border-color: #0284c7;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+            <h2 style="margin:0; border:none; padding:0; display:flex; align-items:center; gap:8px;">
+                ⚡ Live Proof-of-Work Miner Console
+            </h2>
+            <span id="mining-status-badge" class="tag" style="background:#1e293b; color:#94a3b8;">IDLE</span>
+        </div>
+        <div id="mining-console" class="console-box">
+            <span style="color:#64748b;">Waiting for mining command... Click '⛏️ Mine Block' to see local nonce iterations.</span>
+        </div>
+    </div>
+
+    <div class="grid-2">
+        <div class="panel">
+            <h2>Active Wallet</h2>
+            <div id="wallet-info">
+                <button class="btn-purple" onclick="createWallet()">🔑 Generate Named Wallet</button>
+            </div>
+            <div id="wallet-details" style="display:none; margin-top: 16px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                    <div>
+                        <span style="font-size:12px; color:#94a3b8;">Wallet Name:</span><br>
+                        <span class="name-badge" id="wallet-name" style="font-size:16px; padding:4px 12px;">-</span>
+                    </div>
+                    <div style="text-align:right;">
+                        <span style="font-size:12px; color:#94a3b8;">Balance:</span>
+                        <div style="font-size: 24px; font-weight: bold; color: var(--green);" id="wallet-balance">0 Coin</div>
+                    </div>
+                </div>
+
+                <div style="font-size: 12px; color:#94a3b8;">Public Address (IBAN):</div>
+                <div class="hash-badge" id="wallet-address" style="margin-top:4px; margin-bottom:10px;"></div>
+
+                <div style="font-size: 12px; color:#94a3b8; display:flex; justify-content:space-between; align-items:center;">
+                    <span>Private Key (Secret Signer):</span>
+                    <button class="btn-eye" id="eye-btn" onclick="togglePrivateKey()">👁️ Show Key</button>
+                </div>
+                <div class="key-row">
+                    <span id="wallet-privkey" style="color:#e2e8f0; word-break:break-all;">••••••••••••••••••••••••••••</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>Send Signed Transaction</h2>
+            <div style="font-size:12px; color:#94a3b8; margin-bottom:6px;">Choose Recipient by Name:</div>
+            <select id="tx-recipient-select" onchange="onRecipientSelect(this.value)">
+                <option value="">-- Select Known Contact or Type Below --</option>
+            </select>
+            <input type="text" id="tx-recipient" placeholder="Or Paste Public Address (e.g. 65537:1234567)">
+            <input type="number" id="tx-amount" placeholder="Amount (CtrlC-Coin)">
+            <button style="width: 100%;" onclick="sendTransaction()">✍️ Sign & P2P Broadcast</button>
+            <div id="tx-msg" style="margin-top: 8px; font-size: 13px;"></div>
+        </div>
+    </div>
+
+    <h2>Blockchain Ledger</h2>
+    <div class="blocks-container" id="blocks-list">Loading blocks...</div>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>

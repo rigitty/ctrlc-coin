@@ -36,7 +36,7 @@ class Wallet:
         # Private Key: kept secret by wallet owner
         self.private_key = (d, n)
 
-        # Public Key: shared with everyone as the address / IBAN
+        # Public Key: shared with everyone as the address
         self.public_key = f"{e}:{n}"
 
     def sign(self, message_hash):
