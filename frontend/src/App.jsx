@@ -1426,16 +1426,15 @@ export default function App() {
                 }}>
                   {/* Mining Console Header */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
                       <span style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '12px',
-                        filter: miningTelemetry.is_mining ? 'drop-shadow(0 0 6px rgba(59,130,246,0.8))' : 'none'
-                      }}>
-                        ⛏️
-                      </span>
+                        width: '7px',
+                        height: '7px',
+                        borderRadius: '50%',
+                        background: miningTelemetry.is_mining ? 'var(--accent-blue-light)' : 'var(--text-dim)',
+                        boxShadow: miningTelemetry.is_mining ? '0 0 8px var(--accent-blue-light)' : 'none',
+                        display: 'inline-block'
+                      }} />
                       <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-main)' }}>
                         {t.mining_console_title}
                       </span>
@@ -1453,7 +1452,7 @@ export default function App() {
                         fontWeight: '700',
                         fontFamily: 'monospace'
                       }}>
-                        ⚡ {miningTelemetry.hash_rate > 1000 ? `${(miningTelemetry.hash_rate / 1000).toFixed(1)} kH/s` : `${miningTelemetry.hash_rate} H/s`}
+                        HR: {miningTelemetry.hash_rate > 1000 ? `${(miningTelemetry.hash_rate / 1000).toFixed(1)} kH/s` : `${miningTelemetry.hash_rate} H/s`}
                       </span>
 
                       {/* Difficulty / Target Badge */}
@@ -1476,44 +1475,44 @@ export default function App() {
                     let statusBg = 'rgba(255,255,255,0.02)'
                     let statusBorder = 'var(--border)'
                     let statusColor = 'var(--text-main)'
-                    let statusIcon = '💤'
+                    let statusTag = '[IDLE]'
                     let statusText = lang === 'tr' ? miningTelemetry.status_text_tr : miningTelemetry.status_text_en
 
                     if (miningTelemetry.status === 'nonce_found') {
                       statusBg = 'rgba(245, 158, 11, 0.18)'
                       statusBorder = 'rgba(245, 158, 11, 0.5)'
                       statusColor = '#fbbf24'
-                      statusIcon = '🎯'
+                      statusTag = '[SOLVED]'
                     } else if (miningTelemetry.status === 'block_propagated') {
                       statusBg = 'rgba(16, 185, 129, 0.18)'
                       statusBorder = 'rgba(16, 185, 129, 0.5)'
                       statusColor = '#34d399'
-                      statusIcon = '✅'
+                      statusTag = '[NET]'
                     } else if (miningTelemetry.status === 'peer_checking') {
                       statusBg = 'rgba(139, 92, 246, 0.18)'
                       statusBorder = 'rgba(139, 92, 246, 0.5)'
                       statusColor = '#c084fc'
-                      statusIcon = '⚡'
+                      statusTag = '[PEER]'
                     } else if (miningTelemetry.status === 'peer_accepted') {
                       statusBg = 'rgba(16, 185, 129, 0.18)'
                       statusBorder = 'rgba(16, 185, 129, 0.5)'
                       statusColor = '#10b981'
-                      statusIcon = '🔍'
+                      statusTag = '[ACCEPTED]'
                     } else if (miningTelemetry.status === 'race_lost') {
                       statusBg = 'rgba(249, 115, 22, 0.18)'
                       statusBorder = 'rgba(249, 115, 22, 0.5)'
                       statusColor = '#fb923c'
-                      statusIcon = '🔄'
+                      statusTag = '[RACE]'
                     } else if (miningTelemetry.status === 'peer_rejected') {
                       statusBg = 'rgba(239, 68, 68, 0.18)'
                       statusBorder = 'rgba(239, 68, 68, 0.5)'
                       statusColor = '#f87171'
-                      statusIcon = '❌'
+                      statusTag = '[REJECTED]'
                     } else if (miningTelemetry.status === 'mining') {
                       statusBg = 'rgba(37, 99, 235, 0.15)'
                       statusBorder = 'rgba(37, 99, 235, 0.4)'
                       statusColor = 'var(--accent-blue-light)'
-                      statusIcon = '⛏️'
+                      statusTag = '[POW]'
                     }
 
                     return (
@@ -1531,7 +1530,15 @@ export default function App() {
                         fontWeight: '600'
                       }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          <span style={{ fontSize: '12px' }}>{statusIcon}</span>
+                          <span style={{
+                            width: '6px',
+                            height: '6px',
+                            borderRadius: '50%',
+                            background: statusColor,
+                            boxShadow: `0 0 6px ${statusColor}`,
+                            display: 'inline-block'
+                          }} />
+                          <span style={{ fontFamily: 'monospace', fontSize: '9.5px', opacity: 0.85 }}>{statusTag}</span>
                           <span>{statusText}</span>
                         </div>
                         {miningTelemetry.current_nonce > 0 && (

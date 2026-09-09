@@ -125,9 +125,9 @@ class MiningTelemetry:
             self.status = "mining"
             self.block_index = block_index
             self.difficulty = difficulty
-            self.status_text_tr = f"⛏️ Blok #{block_index} için Nonce taranıyor... (Hedef: {'0'*difficulty})"
-            self.status_text_en = f"⛏️ Mining Block #{block_index}... (Target: {'0'*difficulty})"
-            self.add_log(f"⛏️ Blok #{block_index} kazımı başlatıldı. Hedef zorluk: {difficulty} ({'0'*difficulty})", "start")
+            self.status_text_tr = f"[POW] Blok #{block_index} için Nonce taranıyor... (Hedef: {'0'*difficulty})"
+            self.status_text_en = f"[POW] Mining Block #{block_index}... (Target: {'0'*difficulty})"
+            self.add_log(f"[START] Blok #{block_index} kazımı başlatıldı. Hedef zorluk: {difficulty} ({'0'*difficulty})", "start")
 
     def record_progress(self, block_index, nonce, hsh, hash_rate, difficulty, won=False):
         with self.lock:
@@ -146,9 +146,9 @@ class MiningTelemetry:
 
             if won:
                 self.status = "nonce_found"
-                self.status_text_tr = f"🎯 Nonce bulundu! (#{nonce:,}) -> Ağa iletiliyor..."
-                self.status_text_en = f"🎯 Nonce found! (#{nonce:,}) -> Broadcasting to network..."
-                self.add_log(f"🎯 Nonce bulundu! (#{nonce:,}) -> Hash: {hsh} | Ağa iletiliyor...", "win")
+                self.status_text_tr = f"[SOLVED] Nonce bulundu! (#{nonce:,}) -> Ağa iletiliyor..."
+                self.status_text_en = f"[SOLVED] Nonce found! (#{nonce:,}) -> Broadcasting to network..."
+                self.add_log(f"[SOLVED] Nonce bulundu! (#{nonce:,}) -> Hash: {hsh} | Ağa iletiliyor...", "win")
             elif len(self.mining_logs) == 0 or (nonce % 6000 < 1500):
                 leading_zeros = len(hsh) - len(hsh.lstrip('0'))
                 tag = f"[{leading_zeros} Sıfır Yakalandı!]" if leading_zeros >= 2 else "(Taranıyor...)"
@@ -157,44 +157,44 @@ class MiningTelemetry:
     def on_nonce_found(self, block_index, nonce, hsh):
         with self.lock:
             self.status = "nonce_found"
-            self.status_text_tr = f"🎯 Nonce bulundu! (#{nonce:,}) -> Ağa iletiliyor..."
-            self.status_text_en = f"🎯 Nonce found! (#{nonce:,}) -> Broadcasting to network..."
-            self.add_log(f"🎯 Nonce bulundu! (#{nonce:,}) -> Hash: {hsh} | Ağa iletiliyor...", "win")
+            self.status_text_tr = f"[SOLVED] Nonce bulundu! (#{nonce:,}) -> Ağa iletiliyor..."
+            self.status_text_en = f"[SOLVED] Nonce found! (#{nonce:,}) -> Broadcasting to network..."
+            self.add_log(f"[SOLVED] Nonce bulundu! (#{nonce:,}) -> Hash: {hsh} | Ağa iletiliyor...", "win")
 
     def on_block_broadcast(self, block_index, peer_count, reward=50):
         with self.lock:
             self.status = "block_propagated"
-            self.status_text_tr = f"✅ Blok #{block_index} ağa başarıyla iletildi (+{reward} COIN)"
-            self.status_text_en = f"✅ Block #{block_index} broadcasted to network (+{reward} COIN)"
-            self.add_log(f"📡 Blok #{block_index} {peer_count} eşe iletildi ve zincire eklendi (+{reward} COIN)", "network")
+            self.status_text_tr = f"[NET] Blok #{block_index} ağa başarıyla iletildi (+{reward} COIN)"
+            self.status_text_en = f"[NET] Block #{block_index} broadcasted to network (+{reward} COIN)"
+            self.add_log(f"[NET] Blok #{block_index} {peer_count} eşe iletildi ve zincire eklendi (+{reward} COIN)", "network")
 
     def on_peer_block_received(self, block_index, peer_alias, nonce, hsh):
         with self.lock:
             self.status = "peer_checking"
-            self.status_text_tr = f"⚡ Başka birisi buldu (Eş: [{peer_alias}]) -> Blok #{block_index} alındı, kontrol ediliyor..."
-            self.status_text_en = f"⚡ Peer [{peer_alias}] found block! Verifying Block #{block_index}..."
-            self.add_log(f"⚡ Başka birisi buldu: [{peer_alias}] Blok #{block_index} (Nonce: #{nonce:,}) iletti, kontrol ediliyor...", "peer")
+            self.status_text_tr = f"[PEER] Başka birisi buldu (Eş: [{peer_alias}]) -> Blok #{block_index} alındı, kontrol ediliyor..."
+            self.status_text_en = f"[PEER] Peer [{peer_alias}] found block! Verifying Block #{block_index}..."
+            self.add_log(f"[PEER] Başka birisi buldu: [{peer_alias}] Blok #{block_index} (Nonce: #{nonce:,}) iletti, kontrol ediliyor...", "peer")
 
     def on_peer_block_accepted(self, block_index, peer_alias):
         with self.lock:
             self.status = "peer_accepted"
-            self.status_text_tr = f"🔍 Başka birisi buldu: PoW ve kurallar doğrulandı, kabul edildi!"
-            self.status_text_en = f"🔍 Peer block verified: PoW & consensus valid, accepted!"
-            self.add_log(f"🔍 Eş [{peer_alias}] tarafından bulunan Blok #{block_index} kontrol edildi: Kabul edildi ve zincire eklendi!", "accepted")
+            self.status_text_tr = f"[ACCEPTED] Başka birisi buldu: PoW ve kurallar doğrulandı, kabul edildi!"
+            self.status_text_en = f"[ACCEPTED] Peer block verified: PoW & consensus valid, accepted!"
+            self.add_log(f"[ACCEPTED] Eş [{peer_alias}] tarafından bulunan Blok #{block_index} kontrol edildi: Kabul edildi ve zincire eklendi!", "accepted")
 
     def on_peer_block_rejected(self, block_index, peer_alias):
         with self.lock:
             self.status = "peer_rejected"
-            self.status_text_tr = f"❌ Eşten gelen Blok #{block_index} geçersiz: PoW veya imza reddedildi!"
-            self.status_text_en = f"❌ Block #{block_index} rejected: Invalid PoW or signature!"
-            self.add_log(f"❌ Eş [{peer_alias}] tarafından iletilen blok geçersiz bulundu ve reddedildi!", "warn")
+            self.status_text_tr = f"[REJECTED] Eşten gelen Blok #{block_index} geçersiz: PoW veya imza reddedildi!"
+            self.status_text_en = f"[REJECTED] Block #{block_index} rejected: Invalid PoW or signature!"
+            self.add_log(f"[REJECTED] Eş [{peer_alias}] tarafından iletilen blok geçersiz bulundu ve reddedildi!", "warn")
 
     def on_race_lost(self, block_index):
         with self.lock:
             self.status = "race_lost"
-            self.status_text_tr = f"🔄 Yarış kaybedildi: Eş bloğu önce çözdü. Yeni blok başlatılıyor..."
-            self.status_text_en = f"🔄 Race lost: Peer solved block first. Preparing next block..."
-            self.add_log(f"🔄 Yarış kaybedildi: Eş bloğu daha önce çözdü. Sıradaki Blok #{block_index + 1} için madenci yeniden başlatılıyor...", "race")
+            self.status_text_tr = f"[RACE] Yarış kaybedildi: Eş bloğu önce çözdü. Yeni blok başlatılıyor..."
+            self.status_text_en = f"[RACE] Race lost: Peer solved block first. Preparing next block..."
+            self.add_log(f"[RACE] Yarış kaybedildi: Eş bloğu daha önce çözdü. Sıradaki Blok #{block_index + 1} için madenci yeniden başlatılıyor...", "race")
 
     def set_idle(self, auto_mining_on=False, has_wallet=True):
         with self.lock:
@@ -202,16 +202,16 @@ class MiningTelemetry:
             self.hash_rate = 0
             if not has_wallet:
                 self.status = "idle"
-                self.status_text_tr = "⚠️ Cüzdan kilitli. Madencilik için cüzdanınızı açın."
-                self.status_text_en = "⚠️ Wallet locked. Unlock wallet to mine."
+                self.status_text_tr = "[WARN] Cüzdan kilitli. Madencilik için cüzdanınızı açın."
+                self.status_text_en = "[WARN] Wallet locked. Unlock wallet to mine."
             elif not auto_mining_on:
                 self.status = "idle"
-                self.status_text_tr = "💤 Oto-Madenci Kapalı. Başlatmak için 'Oto-Madenci' butonuna tıklayın."
-                self.status_text_en = "💤 Auto-Miner OFF. Click 'Auto-Miner' button to start."
+                self.status_text_tr = "[IDLE] Oto-Madenci Kapalı. Başlatmak için 'Oto-Madenci' butonuna tıklayın."
+                self.status_text_en = "[IDLE] Auto-Miner OFF. Click 'Auto-Miner' button to start."
             else:
                 self.status = "idle"
-                self.status_text_tr = "💤 Madenci beklemede (Yeni blok bekleniyor...)"
-                self.status_text_en = "💤 Miner standby (Awaiting next block...)"
+                self.status_text_tr = "[STANDBY] Madenci beklemede (Yeni blok bekleniyor...)"
+                self.status_text_en = "[STANDBY] Miner standby (Awaiting next block...)"
 
     def get_snapshot(self):
         with self.lock:
