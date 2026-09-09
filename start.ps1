@@ -41,11 +41,16 @@ try {
     npx.cmd electron . --port=$Port
 } finally {
     Pop-Location
+    Write-Host "[*] Stopping Node on Port $Port..." -ForegroundColor DarkGray
+    if ($nodeProcess -and -not $nodeProcess.HasExited) {
+        Stop-Process -Id $nodeProcess.Id -Force -ErrorAction SilentlyContinue
+    }
+    # Double check port cleanup
+    $rem = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+    if ($rem) {
+        foreach ($p in $rem.OwningProcess) {
+            if ($p -gt 0) { taskkill /F /PID $p 2>$null | Out-Null }
+        }
+    }
+    Write-Host "[+] Session ended cleanly." -ForegroundColor Green
 }
-
-# 5. When the desktop window is closed, cleanly terminate the background node
-Write-Host "[*] Stopping Node on Port $Port..." -ForegroundColor DarkGray
-if ($nodeProcess -and -not $nodeProcess.HasExited) {
-    Stop-Process -Id $nodeProcess.Id -Force -ErrorAction SilentlyContinue
-}
-Write-Host "[+] Session ended cleanly." -ForegroundColor Green

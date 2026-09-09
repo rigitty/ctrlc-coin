@@ -584,13 +584,18 @@ export default function App() {
       {/* Custom Frameless Windows Titlebar */}
       <div className="custom-titlebar">
         {/* Left: Branding & Status */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
           <img
             src="/logo.png"
             alt="CtrlC-Coin"
-            style={{ height: '18px', width: 'auto', objectFit: 'contain' }}
+            style={{ 
+              height: '24px', 
+              width: 'auto', 
+              objectFit: 'contain',
+              filter: 'drop-shadow(0 0 8px rgba(56, 189, 248, 0.5))'
+            }}
           />
-          <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-main)', letterSpacing: '-0.2px' }}>
+          <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-main)', letterSpacing: '-0.2px' }}>
             CtrlC-Coin
           </span>
           <span style={{
@@ -802,6 +807,17 @@ export default function App() {
             textAlign: 'center',
             boxShadow: '0 8px 30px rgba(0,0,0,0.6)'
           }}>
+            <img
+              src="/logo.png"
+              alt="CtrlC-Coin"
+              style={{
+                height: '60px',
+                width: 'auto',
+                margin: '0 auto 16px',
+                display: 'block',
+                filter: 'drop-shadow(0 0 14px rgba(56, 189, 248, 0.45))'
+              }}
+            />
             <h2 style={{ fontSize: '17px', fontWeight: '700', marginBottom: '8px', color: 'var(--accent-blue-light)' }}>
               {t.awaiting_node.replace('{port}', currentPort)}
             </h2>
@@ -852,7 +868,13 @@ export default function App() {
             <img
               src="/logo.png"
               alt="Logo"
-              style={{ height: '56px', width: 'auto', margin: '0 auto 14px', display: 'block' }}
+              style={{
+                height: '70px',
+                width: 'auto',
+                margin: '0 auto 16px',
+                display: 'block',
+                filter: 'drop-shadow(0 0 16px rgba(56, 189, 248, 0.45))'
+              }}
             />
             <h2 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '6px' }}>
               {t.wallet_setup_title}
@@ -1007,7 +1029,13 @@ export default function App() {
             <img
               src="/logo.png"
               alt="Logo"
-              style={{ height: '48px', width: 'auto', margin: '0 auto 12px', display: 'block' }}
+              style={{
+                height: '64px',
+                width: 'auto',
+                margin: '0 auto 16px',
+                display: 'block',
+                filter: 'drop-shadow(0 0 14px rgba(56, 189, 248, 0.45))'
+              }}
             />
             <h2 style={{ fontSize: '17px', fontWeight: '700', marginBottom: '6px' }}>
               {t.wallet_locked_title.replace('{port}', currentPort)}

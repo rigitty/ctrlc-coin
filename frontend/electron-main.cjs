@@ -1,9 +1,62 @@
 const { app, BrowserWindow, screen, ipcMain } = require('electron');
 const path = require('path');
+const http = require('http');
+const { spawn, execSync } = require('child_process');
 
 let mainWindow = null;
+let spawnedNodeProcess = null;
 
-function createWindow() {
+function checkIsNodeRunning(port) {
+  return new Promise((resolve) => {
+    const req = http.get(`http://127.0.0.1:${port}/blocks`, (res) => {
+      resolve(true);
+    });
+    req.on('error', () => {
+      resolve(false);
+    });
+    req.setTimeout(800, () => {
+      req.destroy();
+      resolve(false);
+    });
+  });
+}
+
+function startPythonNode(port) {
+  try {
+    const projectRoot = path.join(__dirname, '..');
+    const pyScript = path.join(projectRoot, 'node.py');
+    
+    // Spawn Python node in background
+    const py = spawn('python', [pyScript, String(port)], {
+      cwd: projectRoot,
+      windowsHide: true,
+      stdio: 'ignore'
+    });
+
+    spawnedNodeProcess = py;
+
+    py.on('error', (err) => {
+      console.error('[Electron] Failed to start background Python node:', err);
+    });
+  } catch (err) {
+    console.error('[Electron] Error launching node.py:', err);
+  }
+}
+
+function cleanupPythonNode() {
+  if (spawnedNodeProcess && spawnedNodeProcess.pid) {
+    try {
+      if (process.platform === 'win32') {
+        execSync(`taskkill /PID ${spawnedNodeProcess.pid} /F /T`, { stdio: 'ignore' });
+      } else {
+        spawnedNodeProcess.kill();
+      }
+    } catch (e) {}
+    spawnedNodeProcess = null;
+  }
+}
+
+async function createWindow() {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width, height } = primaryDisplay.workAreaSize;
 
@@ -14,6 +67,12 @@ function createWindow() {
     } else if (arg.startsWith('--nodePort=')) {
       targetPort = arg.split('=')[1];
     }
+  }
+
+  // Check if python node is already active on this port. If not, auto-launch it!
+  const isRunning = await checkIsNodeRunning(targetPort);
+  if (!isRunning) {
+    startPythonNode(targetPort);
   }
 
   const winWidth = Math.min(1180, width - 40);
@@ -40,6 +99,7 @@ function createWindow() {
 
   mainWindow.on('closed', () => {
     mainWindow = null;
+    cleanupPythonNode();
   });
 }
 
@@ -58,12 +118,26 @@ ipcMain.on('window-maximize', () => {
 });
 
 ipcMain.on('window-close', () => {
+  cleanupPythonNode();
   if (mainWindow) mainWindow.close();
 });
 
 app.whenReady().then(createWindow);
 
+app.on('before-quit', () => {
+  cleanupPythonNode();
+});
+
+app.on('will-quit', () => {
+  cleanupPythonNode();
+});
+
+process.on('exit', () => {
+  cleanupPythonNode();
+});
+
 app.on('window-all-closed', () => {
+  cleanupPythonNode();
   if (process.platform !== 'darwin') {
     app.quit();
   }

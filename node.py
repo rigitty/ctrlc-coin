@@ -1,4 +1,4 @@
-himport collections
+import collections
 import json
 import os
 import random
