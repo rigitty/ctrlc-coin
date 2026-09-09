@@ -1,23 +1,26 @@
 ﻿import json
+import threading
 import time
 from block import Block
 from transaction import Transaction
+from config import Config
 
 class Blockchain:
-    ADJUSTMENT_INTERVAL = 5
-    TARGET_TIME_PER_BLOCK = 2
-    HALVING_INTERVAL = 5
-    INITIAL_REWARD = 50
+    def __init__(self, initial_difficulty=None, initial_reward=None):
+        self.difficulty = initial_difficulty or Config.INITIAL_DIFFICULTY
+        self.initial_reward = initial_reward or Config.INITIAL_REWARD
+        self.adjustment_interval = Config.ADJUSTMENT_INTERVAL
+        self.target_time_per_block = Config.TARGET_TIME_PER_BLOCK
+        self.halving_interval = Config.HALVING_INTERVAL
 
-    def __init__(self, initial_difficulty=2):
-        self.difficulty = initial_difficulty
         self.pending_transactions = []
+        self.lock = threading.Lock()
         self.chain = [self.create_genesis_block()]
 
     @property
     def current_mining_reward(self):
-        halvings = len(self.chain) // self.HALVING_INTERVAL
-        reward = self.INITIAL_REWARD / (2 ** halvings)
+        halvings = len(self.chain) // self.halving_interval
+        reward = self.initial_reward / (2 ** halvings)
         return round(reward, 4)
 
     def create_genesis_block(self):
@@ -34,14 +37,14 @@ class Blockchain:
         return self.chain[-1]
 
     def adjust_difficulty(self):
-        if len(self.chain) < self.ADJUSTMENT_INTERVAL:
+        if len(self.chain) < self.adjustment_interval:
             return self.difficulty
 
         latest_block = self.get_latest_block()
-        prev_adjustment_block = self.chain[-self.ADJUSTMENT_INTERVAL]
+        prev_adjustment_block = self.chain[-self.adjustment_interval]
 
         actual_time = latest_block.timestamp - prev_adjustment_block.timestamp
-        expected_time = self.ADJUSTMENT_INTERVAL * self.TARGET_TIME_PER_BLOCK
+        expected_time = self.adjustment_interval * self.target_time_per_block
 
         if actual_time < (expected_time / 2):
             self.difficulty += 1
@@ -53,99 +56,112 @@ class Blockchain:
         return self.difficulty
 
     def add_transaction(self, transaction):
-        if not transaction.is_valid():
-            raise ValueError("Invalid transaction signature!")
+        with self.lock:
+            # Reject coinbase transactions submitted by users
+            if transaction.sender is None:
+                return False
 
-        if transaction.amount <= 0:
-            raise ValueError("Transaction amount must be greater than 0!")
+            if not transaction.is_valid():
+                raise ValueError("Invalid transaction signature!")
 
-        if transaction.sender is not None:
+            if transaction.amount <= 0:
+                raise ValueError("Transaction amount must be greater than 0!")
+
             sender_balance = self.get_balance_of_address(transaction.sender)
             if sender_balance < transaction.amount:
                 raise ValueError("Insufficient balance!")
 
-        tx_hash = transaction.calculate_hash()
-        for p_tx in self.pending_transactions:
-            if p_tx.calculate_hash() == tx_hash:
-                return False
+            tx_hash = transaction.calculate_hash()
+            for p_tx in self.pending_transactions:
+                if p_tx.calculate_hash() == tx_hash:
+                    return False
 
-        self.pending_transactions.append(transaction)
-        return True
+            self.pending_transactions.append(transaction)
+            return True
 
     def mine_pending_transactions(self, miner_address):
-        start_t = time.time()
-        reward_amount = self.current_mining_reward
-        reward_tx = Transaction(sender=None, recipient=miner_address, amount=reward_amount)
-        self.pending_transactions.append(reward_tx)
+        with self.lock:
+            start_t = time.time()
+            reward_amount = self.current_mining_reward
+            reward_tx = Transaction(sender=None, recipient=miner_address, amount=reward_amount)
 
-        if len(self.chain) % self.ADJUSTMENT_INTERVAL == 0:
-            self.adjust_difficulty()
+            # Strict Bitcoin rule: Coinbase is NEVER in mempool, it is injected directly into block[0]
+            user_txs = [tx for tx in self.pending_transactions if tx.sender is not None]
+            block_txs = [reward_tx] + user_txs
 
-        latest_block = self.get_latest_block()
-        new_block = Block(
-            index=latest_block.index + 1,
-            previous_hash=latest_block.hash,
-            transactions=self.pending_transactions,
-            difficulty=self.difficulty
-        )
+            if len(self.chain) % self.adjustment_interval == 0:
+                self.adjust_difficulty()
 
-        # Collect sampling logs during mining
-        sample_logs = []
-        target = "0" * self.difficulty
-        while not new_block.hash.startswith(target):
-            if new_block.nonce < 3 or new_block.nonce % 2000 == 0:
-                sample_logs.append({"nonce": new_block.nonce, "hash": new_block.hash[:16] + "..."})
-            new_block.nonce += 1
-            new_block.hash = new_block.calculate_hash()
+            latest_block = self.get_latest_block()
+            new_block = Block(
+                index=latest_block.index + 1,
+                previous_hash=latest_block.hash,
+                transactions=block_txs,
+                difficulty=self.difficulty
+            )
 
-        duration = time.time() - start_t
-        self.chain.append(new_block)
-        self.pending_transactions = []
+            sample_logs = []
+            target = "0" * self.difficulty
+            while not new_block.hash.startswith(target):
+                if new_block.nonce < 3 or new_block.nonce % 2000 == 0:
+                    sample_logs.append({"nonce": new_block.nonce, "hash": new_block.hash[:16] + "..."})
+                new_block.nonce += 1
+                new_block.hash = new_block.calculate_hash()
 
-        mining_stats = {
-            "block_index": new_block.index,
-            "difficulty": new_block.difficulty,
-            "target": target,
-            "winning_nonce": new_block.nonce,
-            "winning_hash": new_block.hash,
-            "duration": round(duration, 3),
-            "samples": sample_logs[:5]
-        }
-        return new_block, mining_stats
+            duration = time.time() - start_t
+            self.chain.append(new_block)
+            self.pending_transactions = []
+
+            mining_stats = {
+                "block_index": new_block.index,
+                "difficulty": new_block.difficulty,
+                "target": target,
+                "winning_nonce": new_block.nonce,
+                "winning_hash": new_block.hash,
+                "duration": round(duration, 3),
+                "samples": sample_logs[:5]
+            }
+            return new_block, mining_stats
 
     def add_received_block(self, block):
-        latest = self.get_latest_block()
+        with self.lock:
+            latest = self.get_latest_block()
 
-        if block.previous_hash != latest.hash:
-            return False
-
-        if block.index != latest.index + 1:
-            return False
-
-        if block.hash != block.calculate_hash():
-            return False
-
-        target = "0" * block.difficulty
-        if not block.hash.startswith(target):
-            return False
-
-        for tx in block.transactions:
-            if hasattr(tx, "is_valid") and not tx.is_valid():
+            if block.previous_hash != latest.hash:
                 return False
 
-        self.chain.append(block)
-        self.difficulty = block.difficulty
+            if block.index != latest.index + 1:
+                return False
 
-        confirmed_hashes = {
-            (tx if hasattr(tx, "calculate_hash") else Transaction(tx["sender"], tx["recipient"], tx["amount"])).calculate_hash()
-            for tx in block.transactions
-        }
-        self.pending_transactions = [
-            tx for tx in self.pending_transactions
-            if tx.calculate_hash() not in confirmed_hashes
-        ]
+            if block.hash != block.calculate_hash():
+                return False
 
-        return True
+            target = "0" * block.difficulty
+            if not block.hash.startswith(target):
+                return False
+
+            # Strict validation: Exactly 1 coinbase reward transaction allowed per block
+            coinbase_count = sum(1 for tx in block.transactions if (tx.sender is None if hasattr(tx, "sender") else tx.get("sender") is None))
+            if coinbase_count > 1:
+                return False
+
+            for tx in block.transactions:
+                if hasattr(tx, "is_valid") and not tx.is_valid():
+                    return False
+
+            self.chain.append(block)
+            self.difficulty = block.difficulty
+
+            confirmed_hashes = {
+                (tx if hasattr(tx, "calculate_hash") else Transaction(tx["sender"], tx["recipient"], tx["amount"])).calculate_hash()
+                for tx in block.transactions
+            }
+            self.pending_transactions = [
+                tx for tx in self.pending_transactions
+                if tx.calculate_hash() not in confirmed_hashes
+            ]
+
+            return True
 
     def get_balance_of_address(self, address):
         balance = 0
@@ -178,6 +194,10 @@ class Blockchain:
             if not current_block.hash.startswith(target):
                 return False
 
+            coinbase_count = sum(1 for tx in current_block.transactions if (tx.sender is None if hasattr(tx, "sender") else tx.get("sender") is None))
+            if coinbase_count > 1:
+                return False
+
             for tx in current_block.transactions:
                 if hasattr(tx, "is_valid") and not tx.is_valid():
                     return False
@@ -185,31 +205,32 @@ class Blockchain:
         return True
 
     def replace_chain(self, new_chain):
-        if len(new_chain) > len(self.chain) and self.is_chain_valid(new_chain):
-            new_confirmed_hashes = set()
-            for b in new_chain:
-                for tx in b.transactions:
-                    tx_obj = tx if hasattr(tx, "calculate_hash") else Transaction(tx["sender"], tx["recipient"], tx["amount"])
-                    new_confirmed_hashes.add(tx_obj.calculate_hash())
+        with self.lock:
+            if len(new_chain) > len(self.chain) and self.is_chain_valid(new_chain):
+                new_confirmed_hashes = set()
+                for b in new_chain:
+                    for tx in b.transactions:
+                        tx_obj = tx if hasattr(tx, "calculate_hash") else Transaction(tx["sender"], tx["recipient"], tx["amount"])
+                        new_confirmed_hashes.add(tx_obj.calculate_hash())
 
-            recovered_txs = []
-            for b in self.chain[1:]:
-                for tx in b.transactions:
-                    tx_obj = tx if hasattr(tx, "calculate_hash") else Transaction(tx["sender"], tx["recipient"], tx["amount"])
-                    if tx_obj.sender is not None and tx_obj.calculate_hash() not in new_confirmed_hashes:
-                        recovered_txs.append(tx_obj)
+                recovered_txs = []
+                for b in self.chain[1:]:
+                    for tx in b.transactions:
+                        tx_obj = tx if hasattr(tx, "calculate_hash") else Transaction(tx["sender"], tx["recipient"], tx["amount"])
+                        if tx_obj.sender is not None and tx_obj.calculate_hash() not in new_confirmed_hashes:
+                            recovered_txs.append(tx_obj)
 
-            self.chain = new_chain
-            self.difficulty = self.chain[-1].difficulty
+                self.chain = new_chain
+                self.difficulty = self.chain[-1].difficulty
 
-            for r_tx in recovered_txs:
-                try:
-                    self.add_transaction(r_tx)
-                except Exception:
-                    pass
+                for r_tx in recovered_txs:
+                    try:
+                        self.add_transaction(r_tx)
+                    except Exception:
+                        pass
 
-            return True
-        return False
+                return True
+            return False
 
     def save_to_file(self, filepath="chaindata.json"):
         chain_data = []

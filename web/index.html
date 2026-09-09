@@ -13,9 +13,10 @@
             <h1>🪙 CtrlC-Coin Explorer</h1>
             <small style="color: #94a3b8;">Production-patterned Pure Python Blockchain Node</small>
         </div>
-        <div>
+        <div style="display:flex; align-items:center; gap:8px;">
+            <button id="btn-auto-mine" class="btn-eye" style="padding: 10px 14px; font-weight:bold;" onclick="toggleAutoMining()">🤖 Auto-Mining: OFF</button>
             <button class="btn-mine" onclick="mineBlock()">⛏️ Mine Block</button>
-            <button class="btn-purple" onclick="resolveConsensus()">🔄 Sync Chain (Consensus)</button>
+            <button class="btn-purple" onclick="resolveConsensus()">🔄 Sync Chain</button>
         </div>
     </header>
 
@@ -35,7 +36,7 @@
             <span id="mining-status-badge" class="tag" style="background:#1e293b; color:#94a3b8;">IDLE</span>
         </div>
         <div id="mining-console" class="console-box">
-            <span style="color:#64748b;">Waiting for mining command... Click '⛏️ Mine Block' to see local nonce iterations.</span>
+            <span style="color:#64748b;">Waiting for mining command... Toggle 'Auto-Mining' or click 'Mine Block' to see local nonce iterations.</span>
         </div>
     </div>
 

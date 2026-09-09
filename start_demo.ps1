@@ -1,4 +1,4 @@
-﻿Write-Host "=============================================" -ForegroundColor Cyan
+Write-Host "=============================================" -ForegroundColor Cyan
 Write-Host "   Starting CtrlC-Coin 2-Node Network Demo   " -ForegroundColor Cyan
 Write-Host "=============================================" -ForegroundColor Cyan
 
@@ -23,9 +23,18 @@ try {
     Write-Host "[-] Could not auto-peer nodes. You can do it manually." -ForegroundColor Red
 }
 
-# 5. Open both dashboards in browser
-Write-Host "[*] Opening Web Dashboards in browser..." -ForegroundColor Cyan
-Start-Process "http://localhost:5000"
-Start-Process "http://localhost:5001"
+# 5. Start Vite Dev Server in background
+Write-Host "[*] Launching UI Engine..." -ForegroundColor Cyan
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd frontend; Write-Host 'CtrlC-Coin Vite Core' -ForegroundColor Magenta; npm run vite"
 
-Write-Host "`nDemo is LIVE! Mine on Node 1, click Sync/Consensus on Node 2 to watch blocks replicate." -ForegroundColor Green
+Start-Sleep -Seconds 3
+
+# 6. Launch Desktop Window 1 (Alice - Port 5000)
+Write-Host "[*] Launching Desktop Window 1: Alice (Port 5000)..." -ForegroundColor Cyan
+Start-Process powershell -ArgumentList "-Command", "cd frontend; npx electron . --port=5000"
+
+# 7. Launch Desktop Window 2: Kevin (Port 5001)
+Write-Host "[*] Launching Desktop Window 2: Kevin (Port 5001)..." -ForegroundColor Green
+Start-Process powershell -ArgumentList "-Command", "cd frontend; npx electron . --port=5001"
+
+Write-Host "`n[SUCCESS] Two native desktop windows launched for Alice (5000) and Kevin (5001). Zero browser tabs." -ForegroundColor Green

@@ -1,4 +1,4 @@
-﻿# Python
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -14,7 +14,6 @@ lib/
 lib64/
 parts/
 sdist/
-var/
 wheels/
 *.egg-info/
 .installed.cfg
@@ -26,9 +25,20 @@ venv/
 env/
 ENV/
 
+# Node.js & Frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
 # Ortam Değişkenleri ve Gizli Anahtarlar
 .env
 .env.local
+.env.*.local
 
 # IDE ve Editör Dosyaları
 .vscode/
@@ -40,10 +50,10 @@ ENV/
 .DS_Store
 Thumbs.db
 
-# Temporary Test Scripts
-main.py
-test_*.py
+# Blokzincir Yerel Defter Kayıtları (Chain Data)
+chaindata*.json
+*.sqlite
+*.db
 
-# Blockchain Local Storage
-chaindata.json
-*.json
+# Geçici Test Dosyaları
+test_*.py

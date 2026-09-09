@@ -1,6 +1,19 @@
 ﻿let currentWallet = null;
 let isKeyVisible = false;
 let knownAliases = {};
+let isAutoMining = false;
+
+async function initWallet() {
+    // Automatically load this node's default identity (Port 5000 = Alice, Port 5001 = Kevin)
+    const res = await fetch("/wallet/current");
+    currentWallet = await res.json();
+    document.getElementById("wallet-details").style.display = "block";
+    document.getElementById("wallet-name").innerText = currentWallet.alias;
+    document.getElementById("wallet-address").innerText = currentWallet.public_key;
+    isKeyVisible = false;
+    updateKeyDisplay();
+    refreshAll();
+}
 
 async function refreshAll() {
     const res = await fetch("/chain");
@@ -9,6 +22,8 @@ async function refreshAll() {
     const pendingData = await pendingRes.json();
 
     knownAliases = data.aliases || {};
+    isAutoMining = !!data.auto_mining;
+    updateAutoMiningButton();
 
     document.getElementById("stat-blocks").innerText = data.length;
     document.getElementById("stat-diff").innerText = data.chain[data.chain.length - 1].difficulty || 2;
@@ -69,6 +84,28 @@ async function refreshAll() {
 
     if (currentWallet) {
         updateWalletBalance(data.chain);
+    }
+}
+
+async function toggleAutoMining() {
+    const res = await fetch("/miner/toggle", { method: "POST" });
+    const data = await res.json();
+    isAutoMining = data.auto_mining;
+    updateAutoMiningButton();
+    const consoleBox = document.getElementById("mining-console");
+    consoleBox.innerHTML += `<br><span class="info">[*] Auto-Mining turned ${isAutoMining ? 'ON (Racing to mine any pending transactions automatically)' : 'OFF'}</span>`;
+}
+
+function updateAutoMiningButton() {
+    const btn = document.getElementById("btn-auto-mine");
+    if (isAutoMining) {
+        btn.innerText = "🤖 Auto-Mining: ON";
+        btn.style.background = "#22c55e";
+        btn.style.color = "#000";
+    } else {
+        btn.innerText = "🤖 Auto-Mining: OFF";
+        btn.style.background = "transparent";
+        btn.style.color = "#94a3b8";
     }
 }
 
@@ -141,8 +178,8 @@ async function mineBlock() {
     badge.style.background = "#eab308";
     badge.style.color = "#000";
 
-    const minerAddr = currentWallet ? currentWallet.public_key : "WebMiner";
-    const minerName = currentWallet ? currentWallet.alias : "WebMiner";
+    const minerAddr = currentWallet ? currentWallet.public_key : "";
+    const minerName = currentWallet ? currentWallet.alias : "Miner";
 
     consoleBox.innerHTML = `<span class="info">[*] Starting Proof-of-Work search for ${minerName}...</span><br>`;
 
@@ -222,5 +259,5 @@ async function sendTransaction() {
     }
 }
 
-window.onload = refreshAll;
+window.onload = initWallet;
 setInterval(refreshAll, 3000);
