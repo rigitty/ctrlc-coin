@@ -143,7 +143,11 @@ def sync_chain_with_peers():
             pass
 
 def broadcast_transaction_to_peers(tx_dict):
+    my_urls = {f"http://127.0.0.1:{NODE_PORT}", f"http://localhost:{NODE_PORT}"}
     for peer in list(peers):
+        if peer.rstrip("/") in my_urls:
+            peers.discard(peer)
+            continue
         try:
             req = urllib.request.Request(
                 f"{peer}/transactions/new",
@@ -157,7 +161,11 @@ def broadcast_transaction_to_peers(tx_dict):
             log_terminal(f"Gossip failed to {peer}: {e}", "warn")
 
 def broadcast_block_to_peers(block_dict):
+    my_urls = {f"http://127.0.0.1:{NODE_PORT}", f"http://localhost:{NODE_PORT}"}
     for peer in list(peers):
+        if peer.rstrip("/") in my_urls:
+            peers.discard(peer)
+            continue
         try:
             req = urllib.request.Request(
                 f"{peer}/blocks/receive",
@@ -388,6 +396,7 @@ class BlockchainHTTPHandler(BaseHTTPRequestHandler):
                 "length": len(chain_data),
                 "total_peers": len(peers),
                 "auto_mining": auto_mining_enabled,
+                "difficulty": blockchain.difficulty,
                 "node_name": get_current_alias(),
                 "aliases": ALIASES,
                 "chain": chain_data
@@ -536,7 +545,7 @@ class BlockchainHTTPHandler(BaseHTTPRequestHandler):
 
                 sender_name = get_or_create_alias(active_node_wallet.public_key)
                 recipient_name = get_or_create_alias(recipient)
-                log_terminal(f"Signed TX: {sender_name} ➜ {recipient_name} ({amount} Coin)", "tx")
+                log_terminal(f"Signed TX: {sender_name} -> {recipient_name} ({amount} Coin)", "tx")
 
                 tx_payload = tx.to_dict()
                 threading.Thread(target=broadcast_transaction_to_peers, args=(tx_payload,)).start()
@@ -571,7 +580,7 @@ class BlockchainHTTPHandler(BaseHTTPRequestHandler):
 
             s_name = get_or_create_alias(body["sender"])
             r_name = get_or_create_alias(body["recipient"])
-            log_terminal(f"Received TX from P2P: {s_name} ➜ {r_name} ({body['amount']} Coin)", "p2p")
+            log_terminal(f"Received TX from P2P: {s_name} -> {r_name} ({body['amount']} Coin)", "p2p")
 
             is_broadcast = self.headers.get("X-Broadcast") == "true"
             if not is_broadcast:
@@ -631,15 +640,24 @@ class BlockchainHTTPHandler(BaseHTTPRequestHandler):
             candidate_block.nonce = b_data["nonce"]
             candidate_block.hash = b_data["hash"]
 
-            accepted = blockchain.add_received_block(candidate_block)
-            if accepted:
+            status = blockchain.add_received_block(candidate_block)
+            if status == "accepted":
                 save_node_state()
                 log_terminal(f"Accepted winning Block #{candidate_block.index} from peer! Appended to chain.", "p2p")
                 self._send_json_response({"message": "Block accepted and appended to local chain"}, 200)
-            else:
-                log_terminal(f"Received Block #{candidate_block.index} out of sync. Triggering resync...", "warn")
+            elif status == "duplicate":
+                self._send_json_response({"message": "Block already in chain"}, 200)
+            elif status == "fork":
+                log_terminal(f"Fork detected at Block #{candidate_block.index}: Competing block mined simultaneously. Resolving longest chain...", "consensus")
                 sync_chain_with_peers()
                 self._send_json_response({"message": "Triggered chain resync"}, 200)
+            elif status == "gap":
+                log_terminal(f"Chain gap at Block #{candidate_block.index}. Catching up with peer...", "consensus")
+                sync_chain_with_peers()
+                self._send_json_response({"message": "Triggered chain resync"}, 200)
+            else:
+                log_terminal(f"Rejected invalid Block #{candidate_block.index} from peer.", "warn")
+                self._send_json_response({"error": "Invalid block"}, 400)
 
         elif parsed.path == "/nodes/register":
             nodes_list = body.get("nodes", [])

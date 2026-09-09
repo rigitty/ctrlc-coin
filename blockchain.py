@@ -1,4 +1,4 @@
-﻿import json
+import json
 import threading
 import time
 from block import Block
@@ -28,9 +28,9 @@ class Blockchain:
             index=0,
             previous_hash="0",
             transactions=[],
-            difficulty=self.difficulty
+            difficulty=1
         )
-        genesis_block.mine_block(self.difficulty)
+        genesis_block.mine_block(1)
         return genesis_block
 
     def get_latest_block(self):
@@ -46,12 +46,18 @@ class Blockchain:
         actual_time = latest_block.timestamp - prev_adjustment_block.timestamp
         expected_time = self.adjustment_interval * self.target_time_per_block
 
+        allow_decrease = getattr(Config, "ALLOW_DIFFICULTY_DECREASE", False)
+        min_diff = getattr(Config, "MIN_DIFFICULTY", 6)
+
         if actual_time < (expected_time / 2):
             self.difficulty += 1
             print(f"\n[Difficulty Adjustment] Blocks mined too fast ({actual_time:.2f}s < {expected_time}s). Difficulty increased to {self.difficulty}!\n")
         elif actual_time > (expected_time * 2):
-            self.difficulty = max(1, self.difficulty - 1)
-            print(f"\n[Difficulty Adjustment] Blocks mined too slowly ({actual_time:.2f}s > {expected_time}s). Difficulty decreased to {self.difficulty}!\n")
+            if allow_decrease and self.difficulty > min_diff:
+                self.difficulty = max(min_diff, self.difficulty - 1)
+                print(f"\n[Difficulty Adjustment] Blocks mined too slowly ({actual_time:.2f}s > {expected_time}s). Difficulty decreased to {self.difficulty}!\n")
+            else:
+                print(f"\n[Difficulty Adjustment] Blocks mined slowly ({actual_time:.2f}s), but difficulty decrease is disabled (Floor: {min_diff}). Kept at {self.difficulty}.\n")
 
         return self.difficulty
 
@@ -127,30 +133,38 @@ class Blockchain:
         with self.lock:
             latest = self.get_latest_block()
 
-            if block.previous_hash != latest.hash:
-                return False
+            # 1. Ignore duplicate blocks already in our chain
+            if any(b.hash == block.hash for b in self.chain):
+                return "duplicate"
 
-            if block.index != latest.index + 1:
-                return False
+            # 2. Competing block at same or lower height (Micro-Fork / Race)
+            if block.index <= latest.index:
+                return "fork"
+
+            # 3. Missing intermediate blocks or parent mismatch
+            if block.previous_hash != latest.hash or block.index != latest.index + 1:
+                return "gap"
 
             if block.hash != block.calculate_hash():
-                return False
+                return "invalid"
 
             target = "0" * block.difficulty
             if not block.hash.startswith(target):
-                return False
+                return "invalid"
 
             # Strict validation: Exactly 1 coinbase reward transaction allowed per block
             coinbase_count = sum(1 for tx in block.transactions if (tx.sender is None if hasattr(tx, "sender") else tx.get("sender") is None))
             if coinbase_count > 1:
-                return False
+                return "invalid"
 
             for tx in block.transactions:
                 if hasattr(tx, "is_valid") and not tx.is_valid():
-                    return False
+                    return "invalid"
 
             self.chain.append(block)
-            self.difficulty = block.difficulty
+            min_diff = getattr(Config, "MIN_DIFFICULTY", 5)
+            allow_decrease = getattr(Config, "ALLOW_DIFFICULTY_DECREASE", False)
+            self.difficulty = block.difficulty if allow_decrease else max(min_diff, block.difficulty)
 
             confirmed_hashes = {
                 (tx if hasattr(tx, "calculate_hash") else Transaction(tx["sender"], tx["recipient"], tx["amount"])).calculate_hash()
@@ -161,7 +175,7 @@ class Blockchain:
                 if tx.calculate_hash() not in confirmed_hashes
             ]
 
-            return True
+            return "accepted"
 
     def get_balance_of_address(self, address):
         balance = 0
@@ -276,7 +290,13 @@ class Blockchain:
             block.hash = b_data["hash"]
             loaded_chain.append(block)
 
-        blockchain = cls(initial_difficulty=loaded_chain[-1].difficulty)
+        min_diff = getattr(Config, "MIN_DIFFICULTY", 5)
+        allow_decrease = getattr(Config, "ALLOW_DIFFICULTY_DECREASE", False)
+        loaded_diff = loaded_chain[-1].difficulty
+        effective_diff = loaded_diff if allow_decrease else max(min_diff, loaded_diff)
+
+        blockchain = cls(initial_difficulty=effective_diff)
+        blockchain.difficulty = effective_diff
         blockchain.chain = loaded_chain
 
         if not blockchain.is_chain_valid():

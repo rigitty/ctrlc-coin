@@ -1,10 +1,12 @@
-﻿# CtrlC-Coin Central Configuration File
+# CtrlC-Coin Central Configuration File
 
 class Config:
     # Mining & Proof of Work
-    INITIAL_DIFFICULTY = 5
+    INITIAL_DIFFICULTY = 6
+    MIN_DIFFICULTY = 6               # Difficulty floor; will never drop below this value
+    ALLOW_DIFFICULTY_DECREASE = False # Set True to allow auto-decrease, False to prevent drops due to idle time
     ADJUSTMENT_INTERVAL = 5          # Re-evaluate difficulty every N blocks
-    TARGET_TIME_PER_BLOCK = 2        # Expected seconds per block
+    TARGET_TIME_PER_BLOCK = 10       # Expected seconds per block
 
     # Monetary Policy & Supply
     INITIAL_REWARD = 50              # Starting block reward
@@ -15,5 +17,5 @@ class Config:
     REQUEST_TIMEOUT = 5              # HTTP timeout in seconds
 
     # Node Automation
-    AUTO_MINING_ENABLED = False      # Can be toggled live via Web UI or API
+    AUTO_MINING_ENABLED = True       # Can be toggled live via Web UI or API
     AUTO_MINING_INTERVAL_SEC = 2     # Sleep interval between auto-mining cycles

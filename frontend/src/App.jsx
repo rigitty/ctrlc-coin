@@ -1,8 +1,212 @@
 import React, { useState, useEffect, useRef } from 'react'
 
+const I18N = {
+  en: {
+    online: 'ONLINE',
+    offline: 'OFFLINE',
+    p2p_network: 'P2P Network:',
+    peers_connected: 'Peers Connected',
+    peer_connected: 'Peer Connected',
+    searching_peers: 'Searching Peers...',
+    btn_12words: '12 Words',
+    btn_lock: 'Lock',
+    btn_switch: 'Switch',
+    minimize: 'Minimize',
+    maximize: 'Maximize / Restore',
+    close: 'Close',
+
+    // Offline view
+    awaiting_node: 'Awaiting Node Connection (Port {port})',
+    node_unreachable: 'Python blockchain server on port {port} is unreachable.\nRun the following command in your terminal to launch:',
+    retry_conn: 'Retry Connection',
+
+    // Auth / Onboarding
+    wallet_setup_title: 'Cryptographic Wallet Setup',
+    wallet_setup_desc: 'Zero centralized custody. Your wallet is locally generated and encrypted using a 12-word BIP-39 seed phrase.',
+    tab_create_wallet: 'Create New Wallet',
+    tab_import_wallet: 'Import via 12 Words',
+    create_pwd_label: 'Set a secure password to encrypt local keystore:',
+    pwd_placeholder: 'At least 4 characters',
+    btn_create_wallet: 'Generate Wallet & 12 Words',
+    seed_phrase_label: '12-Word Recovery Seed Phrase:',
+    seed_phrase_placeholder: 'Enter 12 words separated by spaces...',
+    import_pwd_label: 'Set new local encryption password:',
+    btn_import_wallet: 'Restore & Unlock Wallet',
+    pwd_min_length_err: 'Password must be at least 4 characters long!',
+    seed_12words_err: 'Please enter exactly 12 words!',
+
+    // Locked view
+    wallet_locked_title: 'Wallet Locked (Port {port})',
+    wallet_locked_desc: 'Enter your password to unlock your private key.',
+    unlock_pwd_placeholder: 'Enter Keystore Password',
+    btn_unlock_wallet: 'Unlock Wallet',
+    btn_switch_or_reset: 'Switch to Another Wallet / Reset',
+    confirm_reset: 'Are you sure you want to switch or reset this wallet? (Ensure you have backed up your 12-word seed phrase!)',
+    wallet_reset_notif: 'Wallet reset. Ready to create or import a new wallet.',
+
+    // Seed Drawer & Modal
+    seed_drawer_title: 'Your 12-Word Recovery Phrase (BIP-39 Mnemonic)',
+    seed_drawer_desc: 'These 12 words derive your private key. Never share them; even if your computer is lost, your funds can be completely recovered using these words.',
+    seed_modal_title: 'Save Your 12-Word Recovery Phrase',
+    seed_modal_desc: 'This seed phrase is the ONLY backup of your wallet. Store it safely offline.',
+    btn_seed_saved: 'I Have Safely Saved The Words, Proceed',
+
+    // Cards
+    card_balance_title: 'WALLET BALANCE',
+    public_address_label: 'Public Address:',
+    btn_copy: 'Copy',
+    btn_copied: 'Copied',
+    address_copied_notif: 'Wallet Address Copied',
+
+    card_transfer_title: 'SEND TRANSFER',
+    rsa_signed_badge: 'RSA-Signed',
+    recipient_placeholder: 'Recipient Address or 4-Letter Alias (e.g. LUNA)',
+    amount_placeholder: 'Amount (Coin)',
+    btn_send: 'Send',
+    transfer_sent_notif: '{amount} Coin transfer broadcasted to network',
+    invalid_transfer_err: 'Please enter a valid recipient and positive amount!',
+
+    card_mining_title: 'CONSENSUS & POW',
+    difficulty_label: 'Difficulty:',
+    btn_mine_block: 'Mine Block',
+    btn_auto_mine_on: 'Auto-Miner: ON',
+    btn_auto_mine_off: 'Auto-Miner: OFF',
+    auto_mine_active_notif: 'Auto-Miner Activated',
+    auto_mine_stopped_notif: 'Auto-Miner Stopped',
+    btn_sync: 'Sync',
+    sync_tooltip: 'Synchronize Chain with Peers',
+
+    // Bottom sections
+    console_title: 'Live Node Console',
+    logs_count: 'Logs',
+    tab_chain: 'Blockchain',
+    tab_mempool: 'Mempool',
+    genesis_block: 'Genesis Block #0',
+    block_prefix: 'Block #',
+    sealed_by: 'Miner:',
+    block_reward: 'Block Reward ->',
+    miner_alias_fallback: 'MINER',
+    sender_fallback: 'SENDER',
+    recipient_fallback: 'RECIPIENT',
+    mempool_empty: 'Mempool is empty. No pending transactions.',
+
+    // Metrics Footer Bar
+    footer_consensus: 'Nakamoto PoW (SHA-256)',
+    footer_target: 'Target: 10.0s',
+    footer_supply: 'Circulating Supply:',
+    footer_halving: 'Next Halving: Block #{n}',
+    footer_tip: 'Chain Tip:'
+  },
+  tr: {
+    online: 'ÇEVRİMİÇİ',
+    offline: 'ÇEVRİMDIŞI',
+    p2p_network: 'P2P Ağ:',
+    peers_connected: 'Eş Bağlı',
+    peer_connected: 'Eş Bağlı',
+    searching_peers: 'Eş Aranıyor...',
+    btn_12words: '12 Kelime',
+    btn_lock: 'Kilitle',
+    btn_switch: 'Değiştir',
+    minimize: 'Simge Durumuna Küçült',
+    maximize: 'Büyüt / Geri Yükle',
+    close: 'Kapat',
+
+    // Offline view
+    awaiting_node: 'Node Bağlantısı Bekleniyor (Port {port})',
+    node_unreachable: 'Port {port} üzerindeki Python blockchain sunucusuna erişilemiyor.\nBaşlatmak için terminalde şu komutu çalıştırabilirsiniz:',
+    retry_conn: 'Bağlantıyı Yeniden Dene',
+
+    // Auth / Onboarding
+    wallet_setup_title: 'Kriptografik Cüzdan Kurulumu',
+    wallet_setup_desc: 'Merkezi hesap yoktur. Cüzdanınız yerel olarak 12 kelimelik BIP-39 tohumla şifrelenir.',
+    tab_create_wallet: 'Yeni Cüzdan Oluştur',
+    tab_import_wallet: '12 Kelime ile İçe Aktar',
+    create_pwd_label: 'Cüzdanı Şifreleyecek Güvenli Parola Belirleyin:',
+    pwd_placeholder: 'En az 4 karakter',
+    btn_create_wallet: 'Cüzdanı Oluştur & 12 Kelimeyi Üret',
+    seed_phrase_label: '12 Kelimelik Tohum İfadesi (Seed Phrase):',
+    seed_phrase_placeholder: '12 kelimeyi boşluklarla girin...',
+    import_pwd_label: 'Yeni Yerel Parola Belirleyin:',
+    btn_import_wallet: 'Cüzdanı Geri Yükle & Aç',
+    pwd_min_length_err: 'Parola en az 4 karakter olmalıdır!',
+    seed_12words_err: 'Lütfen tam olarak 12 kelime giriniz!',
+
+    // Locked view
+    wallet_locked_title: 'Cüzdan Kilitli (Port {port})',
+    wallet_locked_desc: 'Cüzdanınızı açmak için parolanızı girin.',
+    unlock_pwd_placeholder: 'Parolanızı Girin',
+    btn_unlock_wallet: 'Cüzdanı Aç',
+    btn_switch_or_reset: 'Farklı Cüzdana Geç / Sıfırla',
+    confirm_reset: 'Cüzdandan çıkmak veya farklı bir cüzdana geçmek istediğinize emin misiniz? (12 kelimelik tohum yedeğinizi aldığınızdan emin olun!)',
+    wallet_reset_notif: 'Cüzdan sıfırlandı. Yeni cüzdan oluşturabilir veya içe aktarabilirsiniz.',
+
+    // Seed Drawer & Modal
+    seed_drawer_title: '12 Kelimelik Tohum İfadeniz (BIP-39 Mnemonic Backup)',
+    seed_drawer_desc: 'Bu 12 kelime özel anahtarınızı oluşturur. Asla kimseyle paylaşmayın; cihazınızı kaybetseniz bile paranızı bu kelimelerle geri alabilirsiniz.',
+    seed_modal_title: '12 Kelimelik Tohum İfadenizi Kaydedin',
+    seed_modal_desc: 'Bu kelimeler cüzdanınızın tek yedeğidir. Bir yere not edin.',
+    btn_seed_saved: 'Kelimeleri Güvenle Kaydettim, Devam Et',
+
+    // Cards
+    card_balance_title: 'CÜZDAN BAKİYESİ',
+    public_address_label: 'Genel Adres:',
+    btn_copy: 'Kopyala',
+    btn_copied: 'Kopyalandı',
+    address_copied_notif: 'Cüzdan Adresi Kopyalandı',
+
+    card_transfer_title: 'TRANSFER GÖNDER',
+    rsa_signed_badge: 'RSA İmzalı',
+    recipient_placeholder: 'Alıcı Adresi veya 4 Harfli İsmi (Örn: LUNA)',
+    amount_placeholder: 'Miktar (Coin)',
+    btn_send: 'Gönder',
+    transfer_sent_notif: '{amount} Coin transferi ağa yayınlandı',
+    invalid_transfer_err: 'Geçerli alıcı adresi ve miktar giriniz!',
+
+    card_mining_title: 'KONSENSÜS & POW',
+    difficulty_label: 'Zorluk:',
+    btn_mine_block: 'Mine Block',
+    btn_auto_mine_on: 'Oto-Madenci: Açık',
+    btn_auto_mine_off: 'Oto-Madenci: Kapalı',
+    auto_mine_active_notif: 'Otomatik Madenci Aktif',
+    auto_mine_stopped_notif: 'Otomatik Madenci Durduruldu',
+    btn_sync: 'Senk',
+    sync_tooltip: 'Eşlerle Zinciri Senkronize Et',
+
+    // Bottom sections
+    console_title: 'Canlı Düğüm Konsolu',
+    logs_count: 'Kayıt',
+    tab_chain: 'Blokzincir',
+    tab_mempool: 'Mempool',
+    genesis_block: 'Genesis Block #0',
+    block_prefix: 'Blok #',
+    sealed_by: 'Mühürleyen:',
+    block_reward: 'Blok Ödülü ->',
+    miner_alias_fallback: 'MADENCİ',
+    sender_fallback: 'GÖNDEREN',
+    recipient_fallback: 'ALICI',
+    mempool_empty: 'Mempool boş. Bekleyen transfer bulunmuyor.',
+
+    // Metrics Footer Bar
+    footer_consensus: 'Nakamoto PoW (SHA-256)',
+    footer_target: 'Hedef: 10.0sn',
+    footer_supply: 'Dolaşımdaki Arz:',
+    footer_halving: 'Sonraki Yarılanma: Blok #{n}',
+    footer_tip: 'Son Blok:'
+  }
+}
+
 export default function App() {
   const urlParams = new URLSearchParams(window.location.search)
   const currentPort = parseInt(urlParams.get('port') || '5000', 10)
+
+  // Language state: Default English ('en'), persists in localStorage
+  const [lang, setLang] = useState(() => localStorage.getItem('ctrlc_coin_lang') || 'en')
+  const t = I18N[lang] || I18N.en
+
+  const toggleLanguage = (selectedLang) => {
+    setLang(selectedLang)
+    localStorage.setItem('ctrlc_coin_lang', selectedLang)
+  }
 
   // Node & Wallet States
   const [walletStatus, setWalletStatus] = useState('loading') // 'no_wallet' | 'locked' | 'unlocked' | 'offline'
@@ -10,9 +214,9 @@ export default function App() {
   const [chainData, setChainData] = useState([])
   const [pendingTxs, setPendingTxs] = useState([])
   const [logs, setLogs] = useState([])
-  const [difficulty, setDifficulty] = useState(5)
+  const [difficulty, setDifficulty] = useState(6)
   const [peersCount, setPeersCount] = useState(0)
-  const [isMining, setIsMining] = useState(false)
+  const [isMining, setIsMining] = useState(true) // Default ON
 
   // Keystore Auth States
   const [createPassword, setCreatePassword] = useState('')
@@ -36,7 +240,7 @@ export default function App() {
     if (walletData?.address) {
       navigator.clipboard.writeText(walletData.address)
       setCopied(true)
-      notify('Cüzdan Adresi Kopyalandı! 📋')
+      notify(t.address_copied_notif)
       setTimeout(() => setCopied(false), 2000)
     }
   }
@@ -97,6 +301,9 @@ export default function App() {
           setChainData(chainJson.chain || [])
           setDifficulty(chainJson.difficulty || 5)
           setPeersCount(chainJson.total_peers || 0)
+          if (typeof chainJson.auto_mining === 'boolean') {
+            setIsMining(chainJson.auto_mining)
+          }
           setPendingTxs(pendingJson.pending_transactions || [])
           setLogs(logsJson.logs || [])
         }
@@ -129,7 +336,7 @@ export default function App() {
   const handleCreateWallet = async (e) => {
     e.preventDefault()
     if (!createPassword || createPassword.length < 4) {
-      alert('Parola en az 4 karakter olmalıdır!')
+      alert(t.pwd_min_length_err)
       return
     }
 
@@ -144,12 +351,12 @@ export default function App() {
         setGeneratedMnemonic(data.mnemonic)
         setShowMnemonicModal(true)
         setCreatePassword('')
-        notify('12 Kelimelik Tohum Başarıyla Üretildi!')
+        notify(lang === 'en' ? '12-Word Seed Generated Successfully!' : '12 Kelimelik Tohum Başarıyla Üretildi!')
       } else {
-        alert(data.error || 'Cüzdan oluşturulamadı')
+        alert(data.error || 'Failed to create wallet')
       }
     } catch (err) {
-      alert(`Hata: ${err.message}`)
+      alert(`Error: ${err.message}`)
     }
   }
 
@@ -157,11 +364,11 @@ export default function App() {
     e.preventDefault()
     const words = importMnemonic.trim().split(/\s+/)
     if (words.length !== 12) {
-      alert('Lütfen tam olarak 12 kelime giriniz!')
+      alert(t.seed_12words_err)
       return
     }
     if (!importPassword || importPassword.length < 4) {
-      alert('Parola en az 4 karakter olmalıdır!')
+      alert(t.pwd_min_length_err)
       return
     }
 
@@ -175,12 +382,12 @@ export default function App() {
       if (res.ok) {
         setImportMnemonic('')
         setImportPassword('')
-        notify('Cüzdan Başarıyla İçe Aktarıldı!')
+        notify(lang === 'en' ? 'Wallet Imported Successfully!' : 'Cüzdan Başarıyla İçe Aktarıldı!')
       } else {
-        alert(data.error || 'İçe aktarma başarısız')
+        alert(data.error || 'Import failed')
       }
     } catch (err) {
-      alert(`Hata: ${err.message}`)
+      alert(`Error: ${err.message}`)
     }
   }
 
@@ -195,33 +402,33 @@ export default function App() {
       const data = await res.json()
       if (res.ok) {
         setUnlockPassword('')
-        notify('Cüzdan Kilidi Açıldı!')
+        notify(lang === 'en' ? 'Wallet Unlocked!' : 'Cüzdan Kilidi Açıldı!')
       } else {
-        alert(data.error || 'Hatalı parola!')
+        alert(data.error || (lang === 'en' ? 'Incorrect password!' : 'Hatalı parola!'))
       }
     } catch (err) {
-      alert(`Hata: ${err.message}`)
+      alert(`Error: ${err.message}`)
     }
   }
 
   const handleLockWallet = async () => {
     try {
       await fetch(`http://127.0.0.1:${currentPort}/wallet/lock`, { method: 'POST' })
-      notify('Cüzdan Kilitlendi.')
+      notify(lang === 'en' ? 'Wallet Locked.' : 'Cüzdan Kilitlendi.')
     } catch (err) {
-      alert(`Hata: ${err.message}`)
+      alert(`Error: ${err.message}`)
     }
   }
 
   const handleResetWallet = async () => {
-    if (window.confirm('Cüzdandan çıkmak veya farklı bir cüzdana geçmek istediğinize emin misiniz? (12 kelimelik tohum yedeğinizi aldığınızdan emin olun!)')) {
+    if (window.confirm(t.confirm_reset)) {
       try {
         await fetch(`http://127.0.0.1:${currentPort}/wallet/reset`, { method: 'POST' })
         setWalletStatus('no_wallet')
         setWalletData(null)
-        notify('Cüzdan sıfırlandı. Yeni cüzdan oluşturabilir veya içe aktarabilirsiniz.')
+        notify(t.wallet_reset_notif)
       } catch (err) {
-        alert(`Hata: ${err.message}`)
+        alert(`Error: ${err.message}`)
       }
     }
   }
@@ -230,7 +437,7 @@ export default function App() {
   const handleSendTx = async (e) => {
     e.preventDefault()
     if (!recipient || !amount || Number(amount) <= 0) {
-      alert('Geçerli alıcı adresi ve miktar giriniz!')
+      alert(t.invalid_transfer_err)
       return
     }
 
@@ -243,14 +450,14 @@ export default function App() {
       })
       const data = await res.json()
       if (res.ok) {
-        notify(`💸 ${amount} Coin transferi ağa yayınlandı!`)
+        notify(t.transfer_sent_notif.replace('{amount}', amount))
         setRecipient('')
         setAmount('')
       } else {
-        alert(data.error || 'Transfer reddedildi')
+        alert(data.error || 'Transfer rejected')
       }
     } catch (err) {
-      alert(`Hata: ${err.message}`)
+      alert(`Error: ${err.message}`)
     } finally {
       setIsSubmitting(false)
     }
@@ -261,12 +468,12 @@ export default function App() {
       const res = await fetch(`http://127.0.0.1:${currentPort}/mine`, { method: 'POST' })
       const data = await res.json()
       if (res.ok) {
-        notify(`⛏️ Blok #${data.block.index} Kazıldı! Nonce: ${data.block.nonce}`)
+        notify(lang === 'en' ? `Block #${data.block.index} Mined! Nonce: ${data.block.nonce}` : `Blok #${data.block.index} Kazıldı! Nonce: ${data.block.nonce}`)
       } else {
-        alert(data.error || 'Madencilik başarısız')
+        alert(data.error || 'Mining failed')
       }
     } catch (err) {
-      alert(`Hata: ${err.message}`)
+      alert(`Error: ${err.message}`)
     }
   }
 
@@ -276,10 +483,10 @@ export default function App() {
       const data = await res.json()
       if (res.ok) {
         setIsMining(data.auto_mining)
-        notify(data.auto_mining ? 'Otomatik Madenci Aktif' : 'Otomatik Madenci Durduruldu')
+        notify(data.auto_mining ? t.auto_mine_active_notif : t.auto_mine_stopped_notif)
       }
     } catch (err) {
-      alert(`Hata: ${err.message}`)
+      alert(`Error: ${err.message}`)
     }
   }
 
@@ -289,9 +496,26 @@ export default function App() {
       const data = await res.json()
       notify(data.message)
     } catch (err) {
-      alert(`Hata: ${err.message}`)
+      alert(`Error: ${err.message}`)
     }
   }
+
+  // Calculate actual circulating supply dynamically from real coinbase transactions (respects halving)
+  let totalMinedCoins = 0
+  if (chainData && chainData.length > 0) {
+    for (const b of chainData) {
+      if (b.transactions && b.transactions.length > 0) {
+        for (const tx of b.transactions) {
+          if (!tx.sender || tx.sender === 'COINBASE') {
+            totalMinedCoins += Number(tx.amount || 0)
+          }
+        }
+      }
+    }
+  }
+
+  const nextHalvingBlock = chainData.length > 0 ? (Math.floor(chainData.length / 5) + 1) * 5 : 5
+  const latestBlock = chainData.length > 0 ? chainData[chainData.length - 1] : null
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg-main)' }}>
@@ -341,7 +565,7 @@ export default function App() {
             color: walletStatus === 'offline' ? 'var(--accent-rose)' : '#10b981',
             border: `1px solid ${walletStatus === 'offline' ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)'}`
           }}>
-            {walletStatus === 'offline' ? '○ ÇEVRİMDIŞI' : '● ÇEVRİMİÇİ'}
+            {walletStatus === 'offline' ? t.offline : t.online}
           </span>
         </div>
 
@@ -364,13 +588,13 @@ export default function App() {
             boxShadow: peersCount > 0 ? '0 0 6px #10b981' : '0 0 4px #f59e0b',
             display: 'inline-block'
           }} />
-          <span style={{ color: 'var(--text-muted)' }}>P2P Ağ:</span>
+          <span style={{ color: 'var(--text-muted)' }}>{t.p2p_network}</span>
           <strong style={{ color: peersCount > 0 ? 'var(--accent-blue-light)' : 'var(--text-muted)' }}>
-            {peersCount > 0 ? `${peersCount} Eş Bağlı` : 'Eş Aranıyor...'}
+            {peersCount > 0 ? `${peersCount} ${peersCount === 1 ? t.peer_connected : t.peers_connected}` : t.searching_peers}
           </strong>
         </div>
 
-        {/* Right: Quick Actions & Window Controls */}
+        {/* Right: Language Switcher, Quick Actions & Window Controls */}
         <div className="titlebar-nodrag" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           {notification && (
             <span style={{
@@ -386,11 +610,50 @@ export default function App() {
             </span>
           )}
 
+          {/* Language Switcher Pill */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            background: 'rgba(255,255,255,0.04)',
+            border: '1px solid var(--border)',
+            borderRadius: '4px',
+            padding: '1px'
+          }}>
+            <button
+              onClick={() => toggleLanguage('en')}
+              style={{
+                background: lang === 'en' ? 'var(--accent-blue)' : 'transparent',
+                color: lang === 'en' ? '#fff' : 'var(--text-muted)',
+                border: 'none',
+                padding: '2px 6px',
+                borderRadius: '3px',
+                fontSize: '9.5px',
+                fontWeight: '700'
+              }}
+            >
+              EN
+            </button>
+            <button
+              onClick={() => toggleLanguage('tr')}
+              style={{
+                background: lang === 'tr' ? 'var(--accent-blue)' : 'transparent',
+                color: lang === 'tr' ? '#fff' : 'var(--text-muted)',
+                border: 'none',
+                padding: '2px 6px',
+                borderRadius: '3px',
+                fontSize: '9.5px',
+                fontWeight: '700'
+              }}
+            >
+              TR
+            </button>
+          </div>
+
           {walletStatus === 'unlocked' && (
             <div style={{ display: 'flex', gap: '4px' }}>
               <button
                 onClick={() => setShowBackupMnemonic(!showBackupMnemonic)}
-                title="12 Kelimelik Kurtarma İfadesi"
+                title={t.seed_drawer_title}
                 style={{
                   background: 'rgba(255,255,255,0.05)',
                   border: '1px solid var(--border)',
@@ -401,11 +664,11 @@ export default function App() {
                   fontWeight: '600'
                 }}
               >
-                🔑 12 Kelime
+                {t.btn_12words}
               </button>
               <button
                 onClick={handleLockWallet}
-                title="Cüzdanı Kilitle"
+                title={t.btn_lock}
                 style={{
                   background: 'rgba(255,255,255,0.05)',
                   border: '1px solid var(--border)',
@@ -416,11 +679,11 @@ export default function App() {
                   fontWeight: '600'
                 }}
               >
-                🔒 Kilitle
+                {t.btn_lock}
               </button>
               <button
                 onClick={handleResetWallet}
-                title="Cüzdan Değiştir / Sıfırla"
+                title={t.btn_switch_or_reset}
                 style={{
                   background: 'transparent',
                   border: '1px solid var(--border)',
@@ -430,7 +693,7 @@ export default function App() {
                   fontSize: '10.5px'
                 }}
               >
-                🔄 Değiştir
+                {t.btn_switch}
               </button>
             </div>
           )}
@@ -439,21 +702,21 @@ export default function App() {
           <div style={{ display: 'flex', alignItems: 'center', marginLeft: '4px' }}>
             <button
               className="window-control-btn"
-              title="Simge Durumuna Küçült"
+              title={t.minimize}
               onClick={() => window.electronAPI?.minimize()}
             >
               &#8212;
             </button>
             <button
               className="window-control-btn"
-              title="Büyüt / Geri Yükle"
+              title={t.maximize}
               onClick={() => window.electronAPI?.maximize()}
             >
               &#9634;
             </button>
             <button
               className="window-control-btn close"
-              title="Kapat"
+              title={t.close}
               onClick={() => window.electronAPI?.close()}
             >
               &#10005;
@@ -463,7 +726,7 @@ export default function App() {
       </div>
 
       {/* Main Container */}
-      <main style={{ flex: 1, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <main style={{ flex: 1, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
 
         {/* STATE 0: OFFLINE */}
         {walletStatus === 'offline' && (
@@ -477,13 +740,11 @@ export default function App() {
             textAlign: 'center',
             boxShadow: '0 8px 30px rgba(0,0,0,0.6)'
           }}>
-            <div style={{ fontSize: '40px', marginBottom: '12px' }}>📡</div>
             <h2 style={{ fontSize: '17px', fontWeight: '700', marginBottom: '8px', color: 'var(--accent-blue-light)' }}>
-              Node Bağlantısı Bekleniyor (Port {currentPort})
+              {t.awaiting_node.replace('{port}', currentPort)}
             </h2>
-            <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '18px', lineHeight: '1.6' }}>
-              Port {currentPort} üzerindeki Python blockchain sunucusuna erişilemiyor.<br />
-              Başlatmak için terminalde şu komutu çalıştırabilirsiniz:
+            <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '18px', lineHeight: '1.6', whiteSpace: 'pre-line' }}>
+              {t.node_unreachable.replace('{port}', currentPort)}
             </p>
             <div style={{
               background: 'var(--bg-terminal)',
@@ -509,7 +770,7 @@ export default function App() {
                 fontWeight: '600'
               }}
             >
-              Bağlantıyı Yeniden Dene 🔄
+              {t.retry_conn}
             </button>
           </div>
         )}
@@ -532,10 +793,10 @@ export default function App() {
               style={{ height: '56px', width: 'auto', margin: '0 auto 14px', display: 'block' }}
             />
             <h2 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '6px' }}>
-              Kriptografik Cüzdan Kurulumu
+              {t.wallet_setup_title}
             </h2>
             <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '20px' }}>
-              Merkezi hesap yoktur. Cüzdanınız yerel olarak 12 kelimelik tohumla şifrelenir.
+              {t.wallet_setup_desc}
             </p>
 
             <div style={{ display: 'flex', gap: '8px', background: 'var(--bg-terminal)', padding: '4px', borderRadius: '8px', marginBottom: '20px', border: '1px solid var(--border)' }}>
@@ -552,7 +813,7 @@ export default function App() {
                   fontWeight: '600'
                 }}
               >
-                ⚡ Yeni Cüzdan Oluştur
+                {t.tab_create_wallet}
               </button>
               <button
                 onClick={() => setAuthTab('import')}
@@ -567,7 +828,7 @@ export default function App() {
                   fontWeight: '600'
                 }}
               >
-                📥 12 Kelime ile İçe Aktar
+                {t.tab_import_wallet}
               </button>
             </div>
 
@@ -575,11 +836,11 @@ export default function App() {
               <form onSubmit={handleCreateWallet} style={{ display: 'flex', flexDirection: 'column', gap: '14px', textAlign: 'left' }}>
                 <div>
                   <label style={{ fontSize: '11.5px', color: 'var(--text-muted)', display: 'block', marginBottom: '5px' }}>
-                    Cüzdanı Şifreleyecek Güvenli Parola Belirleyin:
+                    {t.create_pwd_label}
                   </label>
                   <input
                     type="password"
-                    placeholder="En az 4 karakter"
+                    placeholder={t.pwd_placeholder}
                     value={createPassword}
                     onChange={e => setCreatePassword(e.target.value)}
                     style={{
@@ -605,18 +866,18 @@ export default function App() {
                     marginTop: '6px'
                   }}
                 >
-                  Cüzdanı Oluştur & 12 Kelimeyi Üret
+                  {t.btn_create_wallet}
                 </button>
               </form>
             ) : (
               <form onSubmit={handleImportWallet} style={{ display: 'flex', flexDirection: 'column', gap: '14px', textAlign: 'left' }}>
                 <div>
                   <label style={{ fontSize: '11.5px', color: 'var(--text-muted)', display: 'block', marginBottom: '5px' }}>
-                    12 Kelimelik Tohum İfadesi (Seed Phrase):
+                    {t.seed_phrase_label}
                   </label>
                   <textarea
                     rows={3}
-                    placeholder="12 kelimeyi boşluklarla girin..."
+                    placeholder={t.seed_phrase_placeholder}
                     value={importMnemonic}
                     onChange={e => setImportMnemonic(e.target.value)}
                     style={{
@@ -632,11 +893,11 @@ export default function App() {
                 </div>
                 <div>
                   <label style={{ fontSize: '11.5px', color: 'var(--text-muted)', display: 'block', marginBottom: '5px' }}>
-                    Yeni Yerel Parola Belirleyin:
+                    {t.import_pwd_label}
                   </label>
                   <input
                     type="password"
-                    placeholder="Cüzdan kilidini açacak şifre"
+                    placeholder={t.pwd_placeholder}
                     value={importPassword}
                     onChange={e => setImportPassword(e.target.value)}
                     style={{
@@ -662,7 +923,7 @@ export default function App() {
                     marginTop: '6px'
                   }}
                 >
-                  Cüzdanı Geri Yükle & Aç
+                  {t.btn_import_wallet}
                 </button>
               </form>
             )}
@@ -687,16 +948,16 @@ export default function App() {
               style={{ height: '48px', width: 'auto', margin: '0 auto 12px', display: 'block' }}
             />
             <h2 style={{ fontSize: '17px', fontWeight: '700', marginBottom: '6px' }}>
-              Cüzdan Kilitli (Port {currentPort})
+              {t.wallet_locked_title.replace('{port}', currentPort)}
             </h2>
             <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '18px' }}>
-              Cüzdanınızı açmak için parolanızı girin.
+              {t.wallet_locked_desc}
             </p>
 
             <form onSubmit={handleUnlockWallet} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <input
                 type="password"
-                placeholder="Parolanızı Girin"
+                placeholder={t.unlock_pwd_placeholder}
                 value={unlockPassword}
                 onChange={e => setUnlockPassword(e.target.value)}
                 autoFocus
@@ -722,7 +983,7 @@ export default function App() {
                   fontSize: '13px'
                 }}
               >
-                Cüzdanı Aç 🔓
+                {t.btn_unlock_wallet}
               </button>
               <button
                 type="button"
@@ -737,7 +998,7 @@ export default function App() {
                   textDecoration: 'underline'
                 }}
               >
-                Farklı Cüzdana Geç / Sıfırla 🔄
+                {t.btn_switch_or_reset}
               </button>
             </form>
           </div>
@@ -759,17 +1020,17 @@ export default function App() {
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: '12.5px', fontWeight: '700', color: 'var(--accent-blue-light)' }}>
-                    🔑 12 Kelimelik Tohum İfadeniz (BIP-39 Mnemonic Backup)
+                    {t.seed_drawer_title}
                   </span>
                   <button
                     onClick={() => setShowBackupMnemonic(false)}
                     style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '14px' }}
                   >
-                    ✕
+                    X
                   </button>
                 </div>
                 <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                  Bu 12 kelime özel anahtarınızı oluşturur. Asla kimseyle paylaşmayın; cihazınızı kaybetseniz bile paranızı bu kelimelerle geri alabilirsiniz.
+                  {t.seed_drawer_desc}
                 </p>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginTop: '4px' }}>
                   {walletData.mnemonic.split(' ').map((word, idx) => (
@@ -790,7 +1051,7 @@ export default function App() {
             )}
 
             {/* Top Row: Compact 3 Action Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.25fr 1fr', gap: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.25fr 1fr', gap: '10px' }}>
 
               {/* Card 1: Wallet Balance & ID */}
               <div style={{
@@ -804,7 +1065,7 @@ export default function App() {
               }}>
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '600' }}>CÜZDAN BAKİYESİ</span>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '600' }}>{t.card_balance_title}</span>
                     {walletData.alias && (
                       <span style={{
                         background: 'rgba(37,99,235,0.2)',
@@ -827,7 +1088,7 @@ export default function App() {
 
                 <div style={{ marginTop: '8px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Genel Adres:</span>
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{t.public_address_label}</span>
                     <button
                       onClick={copyAddress}
                       style={{
@@ -839,7 +1100,7 @@ export default function App() {
                         padding: '1px 4px'
                       }}
                     >
-                      {copied ? '✓ Kopyalandı' : '📋 Kopyala'}
+                      {copied ? t.btn_copied : t.btn_copy}
                     </button>
                   </div>
                   <div style={{
@@ -873,17 +1134,17 @@ export default function App() {
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                     <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '600' }}>
-                      TRANSFER GÖNDER
+                      {t.card_transfer_title}
                     </span>
                     <span style={{ fontSize: '10px', color: 'var(--accent-blue-light)' }}>
-                      🔒 Otomatik RSA İmzalı
+                      {t.rsa_signed_badge}
                     </span>
                   </div>
 
                   <form onSubmit={handleSendTx} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <input
                       type="text"
-                      placeholder="Alıcı Adresi veya 4 Harfli İsmi (Örn: LUNA)"
+                      placeholder={t.recipient_placeholder}
                       value={recipient}
                       onChange={e => setRecipient(e.target.value)}
                       style={{
@@ -901,7 +1162,7 @@ export default function App() {
                         type="number"
                         step="0.01"
                         min="0.01"
-                        placeholder="Miktar (Coin)"
+                        placeholder={t.amount_placeholder}
                         value={amount}
                         onChange={e => setAmount(e.target.value)}
                         style={{
@@ -926,7 +1187,7 @@ export default function App() {
                           fontWeight: '700'
                         }}
                       >
-                        {isSubmitting ? '...' : 'Gönder 💸'}
+                        {isSubmitting ? '...' : t.btn_send}
                       </button>
                     </div>
                   </form>
@@ -946,10 +1207,10 @@ export default function App() {
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                     <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '600' }}>
-                      KONSENSÜS & POI
+                      {t.card_mining_title}
                     </span>
                     <span style={{ fontSize: '10px', color: 'var(--accent-blue-light)', fontFamily: 'monospace' }}>
-                      Zorluk: {difficulty}
+                      {t.difficulty_label} {difficulty}
                     </span>
                   </div>
 
@@ -966,7 +1227,7 @@ export default function App() {
                         fontWeight: '700'
                       }}
                     >
-                      ⛏️ 1 Blok Kaz (+50 Coin)
+                      {t.btn_mine_block}
                     </button>
 
                     <div style={{ display: 'flex', gap: '6px' }}>
@@ -983,12 +1244,12 @@ export default function App() {
                           fontWeight: '600'
                         }}
                       >
-                        {isMining ? '⏹️ Oto-Madenci: Açık' : '▶️ Oto-Madenci'}
+                        {isMining ? t.btn_auto_mine_on : t.btn_auto_mine_off}
                       </button>
 
                       <button
                         onClick={handleConsensusSync}
-                        title="Eşlerle Zinciri Senkronize Et"
+                        title={t.sync_tooltip}
                         style={{
                           background: 'transparent',
                           border: '1px solid var(--border)',
@@ -998,7 +1259,7 @@ export default function App() {
                           fontSize: '10.5px'
                         }}
                       >
-                        🔄 Senk
+                        {t.btn_sync}
                       </button>
                     </div>
                   </div>
@@ -1007,7 +1268,7 @@ export default function App() {
             </div>
 
             {/* Lower Row: 2-Column Balanced Dashboard */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '12px', alignItems: 'stretch' }}>
+            <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '10px', minHeight: '300px' }}>
 
               {/* Left Column: Live Terminal */}
               <div style={{
@@ -1023,20 +1284,22 @@ export default function App() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 4px #10b981' }} />
                     <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-main)' }}>
-                      Canlı Düğüm Konsolu
+                      {t.console_title}
                     </span>
                   </div>
                   <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-                    {logs.length} Kayıt
+                    {logs.length} {t.logs_count}
                   </span>
                 </div>
                 <div
                   ref={terminalRef}
                   style={{
+                    flex: 1,
                     background: 'var(--bg-terminal)',
                     border: '1px solid var(--border)',
                     borderRadius: '5px',
-                    height: '270px',
+                    minHeight: '260px',
+                    maxHeight: '340px',
                     overflowY: 'auto',
                     padding: '8px 10px',
                     fontSize: '10.5px',
@@ -1082,7 +1345,7 @@ export default function App() {
                       fontWeight: '700'
                     }}
                   >
-                    🔗 Blokzincir ({chainData.length})
+                    {t.tab_chain} ({chainData.length})
                   </button>
                   <button
                     onClick={() => setActiveTab('mempool')}
@@ -1096,11 +1359,11 @@ export default function App() {
                       fontWeight: '700'
                     }}
                   >
-                    ⏳ Mempool ({pendingTxs.length})
+                    {t.tab_mempool} ({pendingTxs.length})
                   </button>
                 </div>
 
-                <div style={{ height: '270px', overflowY: 'auto', paddingRight: '4px' }}>
+                <div style={{ flex: 1, minHeight: '260px', maxHeight: '340px', overflowY: 'auto', paddingRight: '4px' }}>
                   {activeTab === 'chain' ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       {chainData.slice().reverse().map(block => (
@@ -1115,7 +1378,7 @@ export default function App() {
                         }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span style={{ fontWeight: '700', color: 'var(--accent-blue-light)', fontSize: '11.5px' }}>
-                              {block.index === 0 ? '🌟 Genesis Block #0' : `📦 Blok #${block.index}`}
+                              {block.index === 0 ? t.genesis_block : `${t.block_prefix}${block.index}`}
                             </span>
                             <span style={{
                               color: '#fff',
@@ -1125,7 +1388,7 @@ export default function App() {
                               borderRadius: '3px',
                               fontSize: '10px'
                             }}>
-                              ⛏️ {block.miner_alias || (block.index === 0 ? 'GENESIS' : 'BİLİNMİYOR')}
+                              {t.sealed_by} {block.miner_alias || (block.index === 0 ? 'GENESIS' : 'UNKNOWN')}
                             </span>
                             <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
                               {new Date(block.timestamp * 1000).toLocaleTimeString()}
@@ -1142,11 +1405,11 @@ export default function App() {
                                 <span style={{ color: 'var(--text-muted)' }}>
                                   {tx.sender === null || tx.sender === 'COINBASE' ? (
                                     <span style={{ color: '#10b981', fontWeight: '600' }}>
-                                      🎁 Blok Ödülü ➜ [{tx.recipient_alias || 'MADENCİ'}]
+                                      {t.block_reward} [{tx.recipient_alias || t.miner_alias_fallback}]
                                     </span>
                                   ) : (
                                     <span>
-                                      <strong style={{ color: 'var(--accent-blue-light)' }}>[{tx.sender_alias || 'GÖNDEREN'}]</strong> ➜ <strong style={{ color: 'var(--accent-blue-light)' }}>[{tx.recipient_alias || 'ALICI'}]</strong>
+                                      <strong style={{ color: 'var(--accent-blue-light)' }}>[{tx.sender_alias || t.sender_fallback}]</strong> {'->'} <strong style={{ color: 'var(--accent-blue-light)' }}>[{tx.recipient_alias || t.recipient_fallback}]</strong>
                                     </span>
                                   )}
                                 </span>
@@ -1160,14 +1423,14 @@ export default function App() {
                   ) : (
                     <div>
                       {pendingTxs.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)', fontSize: '11px' }}>
-                          Mempool boş. Bekleyen transfer bulunmuyor.
+                        <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--text-muted)', fontSize: '11px' }}>
+                          {t.mempool_empty}
                         </div>
                       ) : (
                         pendingTxs.map((tx, i) => (
                           <div key={i} style={{ padding: '6px 10px', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '5px', marginBottom: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span style={{ fontSize: '11px' }}>
-                              <strong style={{ color: 'var(--accent-blue-light)' }}>[{tx.sender_alias || '...'}]</strong> ➜ <strong style={{ color: 'var(--accent-blue-light)' }}>[{tx.recipient_alias || '...'}]</strong>
+                              <strong style={{ color: 'var(--accent-blue-light)' }}>[{tx.sender_alias || '...'}]</strong> {'->'} <strong style={{ color: 'var(--accent-blue-light)' }}>[{tx.recipient_alias || '...'}]</strong>
                             </span>
                             <strong style={{ color: 'var(--accent-blue-light)', fontSize: '11px' }}>{tx.amount} Coin</strong>
                           </div>
@@ -1176,6 +1439,44 @@ export default function App() {
                     </div>
                   )}
                 </div>
+              </div>
+            </div>
+
+            {/* Bottom Engine Metrics Footer Strip */}
+            <div style={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border)',
+              borderRadius: '8px',
+              padding: '8px 14px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              fontSize: '10.5px',
+              color: 'var(--text-muted)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <strong style={{ color: 'var(--text-main)' }}>{t.footer_consensus}</strong>
+                  <span style={{ color: 'var(--text-dim)' }}>({t.footer_target})</span>
+                </span>
+                <span style={{ color: 'var(--border)' }}>|</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <span>{t.footer_supply}</span>
+                  <strong style={{ color: '#10b981' }}>{totalMinedCoins} COIN</strong>
+                  <span style={{ color: 'var(--text-dim)', fontSize: '9.5px' }}>({t.footer_halving.replace('{n}', nextHalvingBlock)})</span>
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <span>{t.footer_tip}</span>
+                  <strong style={{ color: 'var(--text-main)', fontFamily: 'monospace' }}>
+                    #{latestBlock ? latestBlock.index : 0}
+                  </strong>
+                  <span style={{ color: 'var(--text-dim)', fontFamily: 'monospace', fontSize: '9.5px' }}>
+                    ({latestBlock ? `${latestBlock.hash.slice(0, 10)}...` : '0000...'})
+                  </span>
+                </span>
               </div>
             </div>
           </>
@@ -1206,12 +1507,11 @@ export default function App() {
               textAlign: 'center',
               boxShadow: '0 16px 40px rgba(0,0,0,0.8)'
             }}>
-              <div style={{ fontSize: '32px', marginBottom: '8px' }}>⚠️</div>
               <h3 style={{ fontSize: '17px', fontWeight: '700', marginBottom: '6px', color: 'var(--accent-blue-light)' }}>
-                12 Kelimelik Tohum İfadenizi Kaydedin
+                {t.seed_modal_title}
               </h3>
               <p style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginBottom: '18px' }}>
-                Bu kelimeler cüzdanınızın tek yedeğidir. Bir yere not edin.
+                {t.seed_modal_desc}
               </p>
 
               <div style={{
@@ -1256,7 +1556,7 @@ export default function App() {
                   width: '100%'
                 }}
               >
-                Kelimeleri Güvenle Kaydettim, Devam Et
+                {t.btn_seed_saved}
               </button>
             </div>
           </div>
