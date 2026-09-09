@@ -1,4 +1,5 @@
-﻿from block import Block
+﻿import json
+from block import Block
 from transaction import Transaction
 
 class Blockchain:
@@ -17,6 +18,17 @@ class Blockchain:
         return self.chain[-1]
 
     def add_transaction(self, transaction):
+        if not transaction.is_valid():
+            raise ValueError("Invalid transaction signature!")
+
+        if transaction.amount <= 0:
+            raise ValueError("Transaction amount must be greater than 0!")
+
+        if transaction.sender is not None:
+            sender_balance = self.get_balance_of_address(transaction.sender)
+            if sender_balance < transaction.amount:
+                raise ValueError("Insufficient balance!")
+
         self.pending_transactions.append(transaction)
 
     def mine_pending_transactions(self, miner_address):
@@ -48,12 +60,13 @@ class Blockchain:
                     balance += amount
         return balance
 
-    def is_chain_valid(self):
+    def is_chain_valid(self, chain_to_validate=None):
+        chain = chain_to_validate if chain_to_validate is not None else self.chain
         target = "0" * self.difficulty
 
-        for i in range(1, len(self.chain)):
-            current_block = self.chain[i]
-            previous_block = self.chain[i - 1]
+        for i in range(1, len(chain)):
+            current_block = chain[i]
+            previous_block = chain[i - 1]
 
             if current_block.hash != current_block.calculate_hash():
                 return False
@@ -64,4 +77,65 @@ class Blockchain:
             if not current_block.hash.startswith(target):
                 return False
 
+            for tx in current_block.transactions:
+                if hasattr(tx, "is_valid") and not tx.is_valid():
+                    return False
+
         return True
+
+    def replace_chain(self, new_chain):
+        # Consensus: Replace local chain only if incoming chain is longer and completely valid
+        if len(new_chain) > len(self.chain) and self.is_chain_valid(new_chain):
+            self.chain = new_chain
+            return True
+        return False
+
+    def save_to_file(self, filepath="chaindata.json"):
+        chain_data = []
+        for block in self.chain:
+            block_dict = {
+                "index": block.index,
+                "previous_hash": block.previous_hash,
+                "timestamp": block.timestamp,
+                "nonce": block.nonce,
+                "hash": block.hash,
+                "transactions": [
+                    tx if isinstance(tx, dict) else tx.to_dict()
+                    for tx in block.transactions
+                ]
+            }
+            chain_data.append(block_dict)
+
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(chain_data, f, indent=4)
+
+    @classmethod
+    def load_from_file(cls, filepath="chaindata.json", difficulty=2):
+        blockchain = cls(difficulty=difficulty)
+        with open(filepath, "r", encoding="utf-8") as f:
+            chain_data = json.load(f)
+
+        loaded_chain = []
+        for b_data in chain_data:
+            tx_objs = []
+            for tx_item in b_data["transactions"]:
+                t = Transaction(tx_item["sender"], tx_item["recipient"], tx_item["amount"])
+                t.signature = tx_item.get("signature")
+                tx_objs.append(t)
+
+            block = Block(
+                index=b_data["index"],
+                previous_hash=b_data["previous_hash"],
+                transactions=tx_objs,
+                timestamp=b_data["timestamp"]
+            )
+            block.nonce = b_data["nonce"]
+            block.hash = b_data["hash"]
+            loaded_chain.append(block)
+
+        blockchain.chain = loaded_chain
+
+        if not blockchain.is_chain_valid():
+            raise ValueError("Corrupted blockchain file: validation failed!")
+
+        return blockchain

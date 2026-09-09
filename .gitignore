@@ -39,3 +39,11 @@ ENV/
 # İşletim Sistemi Kalıntıları
 .DS_Store
 Thumbs.db
+
+# Temporary Test Scripts
+main.py
+test_*.py
+
+# Blockchain Local Storage
+chaindata.json
+*.json
