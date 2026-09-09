@@ -90,6 +90,13 @@ const I18N = {
     recipient_fallback: 'RECIPIENT',
     mempool_empty: 'Mempool is empty. No pending transactions.',
 
+    // PoW Mining & Nonce Stream Console
+    mining_console_title: 'Live PoW Mining & Nonce Stream',
+    mining_status_title: 'Current Miner Status',
+    mining_hashrate: 'Hash Rate:',
+    mining_target: 'Target:',
+    mining_empty_notice: 'Miner standing by. Launch Auto-Miner or trigger manual mine to stream nonces.',
+
     // Metrics Footer Bar
     footer_consensus: 'Nakamoto PoW (SHA-256)',
     footer_target: 'Target: 10.0s',
@@ -186,6 +193,13 @@ const I18N = {
     recipient_fallback: 'ALICI',
     mempool_empty: 'Mempool boş. Bekleyen transfer bulunmuyor.',
 
+    // PoW Mining & Nonce Stream Console
+    mining_console_title: 'Canlı Nonce & Madencilik Akışı',
+    mining_status_title: 'Mevcut Madenci Durumu',
+    mining_hashrate: 'Kazım Gücü:',
+    mining_target: 'Hedef:',
+    mining_empty_notice: 'Madenci beklemede. Nonceleri görmek için Oto-Madenciyi açın veya blok kazın.',
+
     // Metrics Footer Bar
     footer_consensus: 'Nakamoto PoW (SHA-256)',
     footer_target: 'Hedef: 10.0sn',
@@ -246,8 +260,24 @@ export default function App() {
   }
 
   const terminalRef = useRef(null)
+  const nonceTerminalRef = useRef(null)
 
-  // Polling loop
+  const [miningTelemetry, setMiningTelemetry] = useState({
+    is_mining: false,
+    status: 'idle',
+    status_text_tr: 'Beklemede (Madenci beklemede...)',
+    status_text_en: 'Idle (Awaiting miner activation...)',
+    block_index: 0,
+    difficulty: 6,
+    target: '000000',
+    current_nonce: 0,
+    last_hash: '',
+    hash_rate: 0,
+    recent_nonces: [],
+    logs: []
+  })
+
+  // Polling loop for general status
   useEffect(() => {
     let isMounted = true
 
@@ -320,12 +350,40 @@ export default function App() {
     }
   }, [currentPort])
 
-  // Auto-scroll terminal
+  // Real-time PoW Nonce & Mining Telemetry Polling (High Frequency ~350ms)
+  useEffect(() => {
+    let isMounted = true
+    const fetchTelemetry = async () => {
+      try {
+        const res = await fetch(`http://127.0.0.1:${currentPort}/mining/telemetry`).catch(() => null)
+        if (res && res.ok && isMounted) {
+          const data = await res.json()
+          setMiningTelemetry(data)
+        }
+      } catch (err) {}
+    }
+
+    fetchTelemetry()
+    const timer = setInterval(fetchTelemetry, 350)
+    return () => {
+      isMounted = false
+      clearInterval(timer)
+    }
+  }, [currentPort])
+
+  // Auto-scroll general node terminal
   useEffect(() => {
     if (terminalRef.current) {
       terminalRef.current.scrollTop = terminalRef.current.scrollHeight
     }
   }, [logs])
+
+  // Auto-scroll live mining & nonce stream terminal
+  useEffect(() => {
+    if (nonceTerminalRef.current) {
+      nonceTerminalRef.current.scrollTop = nonceTerminalRef.current.scrollHeight
+    }
+  }, [miningTelemetry.logs, miningTelemetry.recent_nonces, miningTelemetry.current_nonce])
 
   const notify = (msg) => {
     setNotification(msg)
@@ -468,9 +526,13 @@ export default function App() {
       const res = await fetch(`http://127.0.0.1:${currentPort}/mine`, { method: 'POST' })
       const data = await res.json()
       if (res.ok) {
-        notify(lang === 'en' ? `Block #${data.block.index} Mined! Nonce: ${data.block.nonce}` : `Blok #${data.block.index} Kazıldı! Nonce: ${data.block.nonce}`)
+        if (data.block) {
+          notify(lang === 'en' ? `Block #${data.block.index} Mined! Nonce: ${data.block.nonce}` : `Blok #${data.block.index} Kazıldı! Nonce: ${data.block.nonce}`)
+        } else {
+          notify(lang === 'en' ? 'Race lost: Peer solved block first.' : 'Yarış kaybedildi: Eş bloğu önce çözdü.')
+        }
       } else {
-        alert(data.error || 'Mining failed')
+        alert(data.error || (lang === 'en' ? 'Mining failed' : 'Madencilik başarısız'))
       }
     } catch (err) {
       alert(`Error: ${err.message}`)
@@ -1270,56 +1332,264 @@ export default function App() {
             {/* Lower Row: 2-Column Balanced Dashboard */}
             <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '10px', minHeight: '300px' }}>
 
-              {/* Left Column: Live Terminal */}
-              <div style={{
-                background: 'var(--bg-card)',
-                border: '1px solid var(--border)',
-                borderRadius: '8px',
-                padding: '12px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px'
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 4px #10b981' }} />
-                    <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-main)' }}>
-                      {t.console_title}
+              {/* Left Column: Stacked Console and PoW Mining Stream */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+
+                {/* Upper Panel: Live Node Console */}
+                <div style={{
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '8px',
+                  padding: '10px 12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 4px #10b981' }} />
+                      <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-main)' }}>
+                        {t.console_title}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                      {logs.length} {t.logs_count}
                     </span>
                   </div>
-                  <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-                    {logs.length} {t.logs_count}
-                  </span>
+                  <div
+                    ref={terminalRef}
+                    style={{
+                      height: '140px',
+                      background: 'var(--bg-terminal)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '5px',
+                      overflowY: 'auto',
+                      padding: '6px 8px',
+                      fontSize: '10px',
+                      lineHeight: '1.4',
+                      fontFamily: 'monospace'
+                    }}
+                  >
+                    {logs.map((log, idx) => {
+                      let color = '#9ca3af'
+                      if (log.includes('[MINE]') || log.includes('[Miner]')) color = 'var(--accent-blue-light)'
+                      if (log.includes('[P2P]')) color = '#e5e7eb'
+                      if (log.includes('[ERROR]') || log.includes('[WARN]')) color = 'var(--accent-rose)'
+                      if (log.includes('[WALLET]')) color = '#93c5fd'
+                      return (
+                        <div key={idx} style={{ color, marginBottom: '2px', wordBreak: 'break-all' }}>
+                          {log}
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
-                <div
-                  ref={terminalRef}
-                  style={{
-                    flex: 1,
-                    background: 'var(--bg-terminal)',
-                    border: '1px solid var(--border)',
-                    borderRadius: '5px',
-                    minHeight: '260px',
-                    maxHeight: '340px',
-                    overflowY: 'auto',
-                    padding: '8px 10px',
-                    fontSize: '10.5px',
-                    lineHeight: '1.45',
-                    fontFamily: 'monospace'
-                  }}
-                >
-                  {logs.map((log, idx) => {
-                    let color = '#9ca3af'
-                    if (log.includes('[MINE]') || log.includes('[Miner]')) color = 'var(--accent-blue-light)'
-                    if (log.includes('[P2P]')) color = '#e5e7eb'
-                    if (log.includes('[ERROR]') || log.includes('[WARN]')) color = 'var(--accent-rose)'
-                    if (log.includes('[WALLET]')) color = '#93c5fd'
+
+                {/* Lower Panel: Live PoW Mining & Nonce Stream Terminal */}
+                <div style={{
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '8px',
+                  padding: '10px 12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                  flex: 1
+                }}>
+                  {/* Mining Console Header */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '12px',
+                        filter: miningTelemetry.is_mining ? 'drop-shadow(0 0 6px rgba(59,130,246,0.8))' : 'none'
+                      }}>
+                        ⛏️
+                      </span>
+                      <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-main)' }}>
+                        {t.mining_console_title}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {/* Live Hashrate Badge */}
+                      <span style={{
+                        background: 'rgba(37,99,235,0.18)',
+                        border: '1px solid rgba(37,99,235,0.35)',
+                        color: 'var(--accent-blue-light)',
+                        padding: '1px 6px',
+                        borderRadius: '4px',
+                        fontSize: '9.5px',
+                        fontWeight: '700',
+                        fontFamily: 'monospace'
+                      }}>
+                        ⚡ {miningTelemetry.hash_rate > 1000 ? `${(miningTelemetry.hash_rate / 1000).toFixed(1)} kH/s` : `${miningTelemetry.hash_rate} H/s`}
+                      </span>
+
+                      {/* Difficulty / Target Badge */}
+                      <span style={{
+                        background: 'rgba(255,255,255,0.03)',
+                        border: '1px solid var(--border)',
+                        color: 'var(--text-muted)',
+                        padding: '1px 6px',
+                        borderRadius: '4px',
+                        fontSize: '9.5px',
+                        fontFamily: 'monospace'
+                      }}>
+                        {t.mining_target} {miningTelemetry.difficulty} ({(miningTelemetry.target || '000000').slice(0, 6)}...)
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* En Sonki Durum Çubuğu (Dynamic Status Bar) */}
+                  {(() => {
+                    let statusBg = 'rgba(255,255,255,0.02)'
+                    let statusBorder = 'var(--border)'
+                    let statusColor = 'var(--text-main)'
+                    let statusIcon = '💤'
+                    let statusText = lang === 'tr' ? miningTelemetry.status_text_tr : miningTelemetry.status_text_en
+
+                    if (miningTelemetry.status === 'nonce_found') {
+                      statusBg = 'rgba(245, 158, 11, 0.18)'
+                      statusBorder = 'rgba(245, 158, 11, 0.5)'
+                      statusColor = '#fbbf24'
+                      statusIcon = '🎯'
+                    } else if (miningTelemetry.status === 'block_propagated') {
+                      statusBg = 'rgba(16, 185, 129, 0.18)'
+                      statusBorder = 'rgba(16, 185, 129, 0.5)'
+                      statusColor = '#34d399'
+                      statusIcon = '✅'
+                    } else if (miningTelemetry.status === 'peer_checking') {
+                      statusBg = 'rgba(139, 92, 246, 0.18)'
+                      statusBorder = 'rgba(139, 92, 246, 0.5)'
+                      statusColor = '#c084fc'
+                      statusIcon = '⚡'
+                    } else if (miningTelemetry.status === 'peer_accepted') {
+                      statusBg = 'rgba(16, 185, 129, 0.18)'
+                      statusBorder = 'rgba(16, 185, 129, 0.5)'
+                      statusColor = '#10b981'
+                      statusIcon = '🔍'
+                    } else if (miningTelemetry.status === 'race_lost') {
+                      statusBg = 'rgba(249, 115, 22, 0.18)'
+                      statusBorder = 'rgba(249, 115, 22, 0.5)'
+                      statusColor = '#fb923c'
+                      statusIcon = '🔄'
+                    } else if (miningTelemetry.status === 'peer_rejected') {
+                      statusBg = 'rgba(239, 68, 68, 0.18)'
+                      statusBorder = 'rgba(239, 68, 68, 0.5)'
+                      statusColor = '#f87171'
+                      statusIcon = '❌'
+                    } else if (miningTelemetry.status === 'mining') {
+                      statusBg = 'rgba(37, 99, 235, 0.15)'
+                      statusBorder = 'rgba(37, 99, 235, 0.4)'
+                      statusColor = 'var(--accent-blue-light)'
+                      statusIcon = '⛏️'
+                    }
+
                     return (
-                      <div key={idx} style={{ color, marginBottom: '2px', wordBreak: 'break-all' }}>
-                        {log}
+                      <div style={{
+                        background: statusBg,
+                        border: `1px solid ${statusBorder}`,
+                        borderRadius: '6px',
+                        padding: '6px 10px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '8px',
+                        fontSize: '10.5px',
+                        color: statusColor,
+                        fontWeight: '600'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <span style={{ fontSize: '12px' }}>{statusIcon}</span>
+                          <span>{statusText}</span>
+                        </div>
+                        {miningTelemetry.current_nonce > 0 && (
+                          <span style={{
+                            fontFamily: 'monospace',
+                            fontSize: '9.5px',
+                            color: 'var(--text-muted)',
+                            background: 'rgba(0,0,0,0.3)',
+                            border: '1px solid rgba(255,255,255,0.05)',
+                            padding: '1px 5px',
+                            borderRadius: '3px',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            Nonce #{miningTelemetry.current_nonce.toLocaleString()}
+                          </span>
+                        )}
                       </div>
                     )
-                  })}
+                  })()}
+
+                  {/* Kayan Nonce & Madencilik Terminal Logları */}
+                  <div
+                    ref={nonceTerminalRef}
+                    style={{
+                      height: '180px',
+                      background: 'var(--bg-terminal)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '5px',
+                      overflowY: 'auto',
+                      padding: '6px 8px',
+                      fontSize: '10px',
+                      lineHeight: '1.42',
+                      fontFamily: 'monospace'
+                    }}
+                  >
+                    {miningTelemetry.logs.length === 0 && miningTelemetry.recent_nonces.length === 0 ? (
+                      <div style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '45px 0', fontSize: '10.5px' }}>
+                        {t.mining_empty_notice}
+                      </div>
+                    ) : (
+                      <>
+                        {miningTelemetry.logs.map((item, idx) => {
+                          let textColor = '#9ca3af'
+                          if (item.type === 'win') textColor = '#facc15'
+                          else if (item.type === 'network') textColor = '#34d399'
+                          else if (item.type === 'peer') textColor = '#c084fc'
+                          else if (item.type === 'accepted') textColor = '#10b981'
+                          else if (item.type === 'race') textColor = '#fb923c'
+                          else if (item.type === 'warn') textColor = 'var(--accent-rose)'
+                          else if (item.type === 'start') textColor = 'var(--accent-blue-light)'
+                          else if (item.text.includes('Sıfır Yakalandı')) textColor = '#38bdf8'
+
+                          return (
+                            <div key={idx} style={{ color: textColor, marginBottom: '2px', wordBreak: 'break-all' }}>
+                              <span style={{ color: 'var(--text-dim)', marginRight: '5px' }}>[{item.time}]</span>
+                              {item.text}
+                            </div>
+                          )
+                        })}
+
+                        {miningTelemetry.is_mining && miningTelemetry.current_nonce > 0 && (
+                          <div style={{
+                            color: '#38bdf8',
+                            fontWeight: '700',
+                            marginTop: '2px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            padding: '1px 0'
+                          }}>
+                            <span style={{
+                              width: '5px',
+                              height: '5px',
+                              borderRadius: '50%',
+                              background: '#38bdf8',
+                              boxShadow: '0 0 6px #38bdf8',
+                              display: 'inline-block'
+                            }} />
+                            <span>[POW RUNNING] Nonce: #{miningTelemetry.current_nonce.toLocaleString()} {'->'} Hash: {miningTelemetry.last_hash.slice(0, 18)}...</span>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
+
               </div>
 
               {/* Right Column: Explorer & Mempool Tabs */}
@@ -1363,7 +1633,7 @@ export default function App() {
                   </button>
                 </div>
 
-                <div style={{ flex: 1, minHeight: '260px', maxHeight: '340px', overflowY: 'auto', paddingRight: '4px' }}>
+                <div style={{ flex: 1, minHeight: '380px', maxHeight: '425px', overflowY: 'auto', paddingRight: '4px' }}>
                   {activeTab === 'chain' ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       {chainData.slice().reverse().map(block => (

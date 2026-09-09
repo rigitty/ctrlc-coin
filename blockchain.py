@@ -85,9 +85,9 @@ class Blockchain:
             self.pending_transactions.append(transaction)
             return True
 
-    def mine_pending_transactions(self, miner_address):
+    def mine_pending_transactions(self, miner_address, progress_callback=None):
+        start_t = time.time()
         with self.lock:
-            start_t = time.time()
             reward_amount = self.current_mining_reward
             reward_tx = Transaction(sender=None, recipient=miner_address, amount=reward_amount)
 
@@ -98,23 +98,53 @@ class Blockchain:
             if len(self.chain) % self.adjustment_interval == 0:
                 self.adjust_difficulty()
 
-            latest_block = self.get_latest_block()
+            target_difficulty = self.difficulty
+            parent_block = self.get_latest_block()
+            parent_hash = parent_block.hash
+            candidate_index = parent_block.index + 1
+
             new_block = Block(
-                index=latest_block.index + 1,
-                previous_hash=latest_block.hash,
+                index=candidate_index,
+                previous_hash=parent_hash,
                 transactions=block_txs,
-                difficulty=self.difficulty
+                difficulty=target_difficulty
             )
 
-            sample_logs = []
-            target = "0" * self.difficulty
-            while not new_block.hash.startswith(target):
-                if new_block.nonce < 3 or new_block.nonce % 2000 == 0:
-                    sample_logs.append({"nonce": new_block.nonce, "hash": new_block.hash[:16] + "..."})
-                new_block.nonce += 1
-                new_block.hash = new_block.calculate_hash()
+        # 2. Hashing loop runs OUTSIDE the global lock so peers can send blocks/transactions!
+        sample_logs = []
+        target = "0" * target_difficulty
+        check_counter = 0
+
+        while not new_block.hash.startswith(target):
+            check_counter += 1
+            # Periodic peer-race check and telemetry progress callback
+            if check_counter % 1500 == 0:
+                now = time.time()
+                elapsed = max(0.0001, now - start_t)
+                hr = int(check_counter / elapsed)
+                if progress_callback:
+                    progress_callback(new_block.index, new_block.nonce, new_block.hash, hr, target_difficulty, False)
+
+                with self.lock:
+                    current_tip = self.get_latest_block()
+                if current_tip.hash != parent_hash:
+                    # Race lost! Chain already moved ahead
+                    return None, {"aborted": True, "reason": "race_lost"}
+
+            new_block.nonce += 1
+            new_block.hash = new_block.calculate_hash()
+
+        # 3. Won Proof-of-Work! Re-acquire lock to safely append to local chain
+        with self.lock:
+            current_tip = self.get_latest_block()
+            if current_tip.hash != parent_hash:
+                return None, {"aborted": True, "reason": "race_lost"}
 
             duration = time.time() - start_t
+            if progress_callback:
+                hr = int(check_counter / max(0.0001, duration))
+                progress_callback(new_block.index, new_block.nonce, new_block.hash, hr, target_difficulty, True)
+
             self.chain.append(new_block)
             self.pending_transactions = []
 
