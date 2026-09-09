@@ -69,3 +69,44 @@ input, select, textarea {
   font-family: inherit;
   color: inherit;
 }
+
+/* Custom Frameless Titlebar */
+.custom-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 36px;
+  background: #090a0e;
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+  padding: 0 0 0 10px;
+  -webkit-app-region: drag;
+  z-index: 9999;
+}
+
+.titlebar-nodrag {
+  -webkit-app-region: no-drag;
+}
+
+.window-control-btn {
+  width: 42px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  transition: all 0.12s ease;
+}
+
+.window-control-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-main);
+}
+
+.window-control-btn.close:hover {
+  background: #e11d48;
+  color: #fff;
+}

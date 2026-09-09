@@ -14,9 +14,6 @@ export default function App() {
   const [peersCount, setPeersCount] = useState(0)
   const [isMining, setIsMining] = useState(false)
 
-  // P2P Peer Connection
-  const [newPeerUrl, setNewPeerUrl] = useState('')
-
   // Keystore Auth States
   const [createPassword, setCreatePassword] = useState('')
   const [generatedMnemonic, setGeneratedMnemonic] = useState('')
@@ -33,6 +30,16 @@ export default function App() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [notification, setNotification] = useState('')
   const [activeTab, setActiveTab] = useState('chain')
+  const [copied, setCopied] = useState(false)
+
+  const copyAddress = () => {
+    if (walletData?.address) {
+      navigator.clipboard.writeText(walletData.address)
+      setCopied(true)
+      notify('Cüzdan Adresi Kopyalandı! 📋')
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
 
   const terminalRef = useRef(null)
 
@@ -83,6 +90,7 @@ export default function App() {
           setWalletStatus(statusJson.status)
           setWalletData({
             address: activeAddr,
+            alias: currentWallet?.alias || statusJson.alias || chainJson.node_name || '',
             balance,
             mnemonic: currentWallet ? currentWallet.mnemonic : ''
           })
@@ -115,33 +123,6 @@ export default function App() {
   const notify = (msg) => {
     setNotification(msg)
     setTimeout(() => setNotification(''), 4000)
-  }
-
-  // P2P Peer Handler
-  const handleAddPeer = async (e) => {
-    e.preventDefault()
-    if (!newPeerUrl) return
-    let formatted = newPeerUrl.trim()
-    if (!formatted.startsWith('http://') && !formatted.startsWith('https://')) {
-      formatted = `http://127.0.0.1:${formatted}`
-    }
-
-    try {
-      const res = await fetch(`http://127.0.0.1:${currentPort}/nodes/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nodes: [formatted] })
-      })
-      const data = await res.json()
-      if (res.ok) {
-        notify(`Eş düğüm bağlandı: ${formatted}`)
-        setNewPeerUrl('')
-      } else {
-        alert(data.error || 'Eşleşme başarısız')
-      }
-    } catch (err) {
-      alert(`Bağlantı hatası: ${err.message}`)
-    }
   }
 
   // Wallet Actions
@@ -314,108 +295,109 @@ export default function App() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg-main)' }}>
-      {/* Header Bar */}
-      <header style={{
-        background: 'var(--bg-card)',
-        borderBottom: '1px solid var(--border)',
-        padding: '12px 24px',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        position: 'sticky',
-        top: 0,
-        zIndex: 100
-      }}>
-        {/* Left: Logo & Port */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+      {/* Custom Frameless Windows Titlebar */}
+      <div className="custom-titlebar">
+        {/* Left: Branding & Status */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <img
             src="/logo.png"
-            alt="CtrlC-Coin Logo"
-            style={{ height: '36px', width: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.4))' }}
+            alt="CtrlC-Coin"
+            style={{ height: '18px', width: 'auto', objectFit: 'contain' }}
           />
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <h1 style={{ fontSize: '15px', fontWeight: '700', letterSpacing: '-0.2px' }}>CtrlC-Coin</h1>
-              <span style={{
-                background: walletStatus === 'offline' ? 'rgba(239,68,68,0.1)' : 'rgba(37,99,235,0.15)',
-                color: walletStatus === 'offline' ? 'var(--accent-rose)' : 'var(--accent-blue-light)',
-                border: `1px solid ${walletStatus === 'offline' ? 'rgba(239,68,68,0.2)' : 'rgba(37,99,235,0.3)'}`,
-                fontSize: '10.5px',
-                padding: '1px 7px',
-                borderRadius: '4px',
-                fontWeight: '600'
-              }}>
-                {walletStatus === 'offline' ? '○ ÇEVRİMDIŞI' : '● ÇEVRİMİÇİ'}
-              </span>
-            </div>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-              Node Port: <strong style={{ color: 'var(--text-main)' }}>{currentPort}</strong>
-            </div>
-          </div>
+          <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-main)', letterSpacing: '-0.2px' }}>
+            CtrlC-Coin
+          </span>
+          <span style={{
+            fontSize: '10px',
+            color: 'var(--text-muted)',
+            background: 'rgba(255,255,255,0.04)',
+            border: '1px solid var(--border)',
+            padding: '1px 5px',
+            borderRadius: '3px',
+            fontFamily: 'monospace'
+          }}>
+            :{currentPort}
+          </span>
+          {walletData?.alias && (
+            <span style={{
+              background: 'rgba(37,99,235,0.2)',
+              color: 'var(--accent-blue-light)',
+              border: '1px solid rgba(37,99,235,0.35)',
+              padding: '1px 6px',
+              borderRadius: '3px',
+              fontSize: '10px',
+              fontWeight: '800',
+              letterSpacing: '0.8px'
+            }}>
+              [{walletData.alias}]
+            </span>
+          )}
+          <span style={{
+            fontSize: '9.5px',
+            padding: '1px 6px',
+            borderRadius: '3px',
+            fontWeight: '600',
+            background: walletStatus === 'offline' ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)',
+            color: walletStatus === 'offline' ? 'var(--accent-rose)' : '#10b981',
+            border: `1px solid ${walletStatus === 'offline' ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)'}`
+          }}>
+            {walletStatus === 'offline' ? '○ ÇEVRİMDIŞI' : '● ÇEVRİMİÇİ'}
+          </span>
         </div>
 
-        {/* Center: P2P Peer Connection Input */}
-        <form onSubmit={handleAddPeer} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-            Eşler: <strong style={{ color: 'var(--accent-blue-light)' }}>{peersCount}</strong>
-          </span>
-          <input
-            type="text"
-            placeholder="Eş Port veya URL (Örn: 5001)"
-            value={newPeerUrl}
-            onChange={e => setNewPeerUrl(e.target.value)}
-            style={{
-              width: '180px',
-              background: 'var(--bg-main)',
-              border: '1px solid var(--border)',
-              borderRadius: '6px',
-              padding: '5px 10px',
-              fontSize: '11px'
-            }}
-          />
-          <button
-            type="submit"
-            style={{
-              background: 'var(--accent-blue)',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '6px',
-              padding: '5px 12px',
-              fontSize: '11px',
-              fontWeight: '600'
-            }}
-          >
-            + Eşleş
-          </button>
-        </form>
+        {/* Center: P2P Network Status Badge */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          background: peersCount > 0 ? 'rgba(37, 99, 235, 0.08)' : 'rgba(255, 255, 255, 0.02)',
+          border: `1px solid ${peersCount > 0 ? 'rgba(37, 99, 235, 0.3)' : 'var(--border)'}`,
+          padding: '2px 9px',
+          borderRadius: '12px',
+          fontSize: '10.5px'
+        }}>
+          <span style={{
+            width: '6px',
+            height: '6px',
+            borderRadius: '50%',
+            background: peersCount > 0 ? '#10b981' : '#f59e0b',
+            boxShadow: peersCount > 0 ? '0 0 6px #10b981' : '0 0 4px #f59e0b',
+            display: 'inline-block'
+          }} />
+          <span style={{ color: 'var(--text-muted)' }}>P2P Ağ:</span>
+          <strong style={{ color: peersCount > 0 ? 'var(--accent-blue-light)' : 'var(--text-muted)' }}>
+            {peersCount > 0 ? `${peersCount} Eş Bağlı` : 'Eş Aranıyor...'}
+          </strong>
+        </div>
 
-        {/* Right: Notifications & Wallet Actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        {/* Right: Quick Actions & Window Controls */}
+        <div className="titlebar-nodrag" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           {notification && (
-            <div style={{
+            <span style={{
               background: 'rgba(37,99,235,0.15)',
               border: '1px solid var(--accent-blue)',
               color: 'var(--accent-blue-light)',
-              padding: '5px 12px',
-              borderRadius: '6px',
-              fontSize: '11.5px',
+              padding: '2px 8px',
+              borderRadius: '4px',
+              fontSize: '10.5px',
               fontWeight: '500'
             }}>
               {notification}
-            </div>
+            </span>
           )}
 
           {walletStatus === 'unlocked' && (
-            <div style={{ display: 'flex', gap: '6px' }}>
+            <div style={{ display: 'flex', gap: '4px' }}>
               <button
                 onClick={() => setShowBackupMnemonic(!showBackupMnemonic)}
+                title="12 Kelimelik Kurtarma İfadesi"
                 style={{
                   background: 'rgba(255,255,255,0.05)',
                   border: '1px solid var(--border)',
                   color: 'var(--text-main)',
-                  padding: '5px 10px',
-                  borderRadius: '6px',
-                  fontSize: '11px',
+                  padding: '2px 7px',
+                  borderRadius: '4px',
+                  fontSize: '10.5px',
                   fontWeight: '600'
                 }}
               >
@@ -423,13 +405,14 @@ export default function App() {
               </button>
               <button
                 onClick={handleLockWallet}
+                title="Cüzdanı Kilitle"
                 style={{
                   background: 'rgba(255,255,255,0.05)',
                   border: '1px solid var(--border)',
                   color: 'var(--text-main)',
-                  padding: '5px 10px',
-                  borderRadius: '6px',
-                  fontSize: '11px',
+                  padding: '2px 7px',
+                  borderRadius: '4px',
+                  fontSize: '10.5px',
                   fontWeight: '600'
                 }}
               >
@@ -437,24 +420,50 @@ export default function App() {
               </button>
               <button
                 onClick={handleResetWallet}
+                title="Cüzdan Değiştir / Sıfırla"
                 style={{
                   background: 'transparent',
                   border: '1px solid var(--border)',
                   color: 'var(--text-muted)',
-                  padding: '5px 10px',
-                  borderRadius: '6px',
-                  fontSize: '11px'
+                  padding: '2px 7px',
+                  borderRadius: '4px',
+                  fontSize: '10.5px'
                 }}
               >
-                🔄 Cüzdan Değiştir
+                🔄 Değiştir
               </button>
             </div>
           )}
+
+          {/* Window Control Buttons */}
+          <div style={{ display: 'flex', alignItems: 'center', marginLeft: '4px' }}>
+            <button
+              className="window-control-btn"
+              title="Simge Durumuna Küçült"
+              onClick={() => window.electronAPI?.minimize()}
+            >
+              &#8212;
+            </button>
+            <button
+              className="window-control-btn"
+              title="Büyüt / Geri Yükle"
+              onClick={() => window.electronAPI?.maximize()}
+            >
+              &#9634;
+            </button>
+            <button
+              className="window-control-btn close"
+              title="Kapat"
+              onClick={() => window.electronAPI?.close()}
+            >
+              &#10005;
+            </button>
+          </div>
         </div>
-      </header>
+      </div>
 
       {/* Main Container */}
-      <main style={{ flex: 1, padding: '20px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+      <main style={{ flex: 1, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
 
         {/* STATE 0: OFFLINE */}
         {walletStatus === 'offline' && (
@@ -780,83 +789,114 @@ export default function App() {
               </div>
             )}
 
-            {/* Top Row: Wallet Card, Transfer Form, Mining Panel */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.3fr 1fr', gap: '16px' }}>
+            {/* Top Row: Compact 3 Action Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.25fr 1fr', gap: '12px' }}>
 
-              {/* Wallet Card */}
+              {/* Card 1: Wallet Balance & ID */}
               <div style={{
                 background: 'var(--bg-card)',
                 border: '1px solid var(--border)',
-                borderRadius: '10px',
-                padding: '16px',
+                borderRadius: '8px',
+                padding: '12px 14px',
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'space-between'
               }}>
                 <div>
-                  <span style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>CÜZDAN BAKİYESİ</span>
-                  <div style={{ fontSize: '28px', fontWeight: '800', color: 'var(--accent-blue-light)', marginTop: '6px', letterSpacing: '-0.5px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '600' }}>CÜZDAN BAKİYESİ</span>
+                    {walletData.alias && (
+                      <span style={{
+                        background: 'rgba(37,99,235,0.2)',
+                        border: '1px solid rgba(37,99,235,0.4)',
+                        color: 'var(--accent-blue-light)',
+                        padding: '1px 6px',
+                        borderRadius: '4px',
+                        fontSize: '10.5px',
+                        fontWeight: '800',
+                        letterSpacing: '0.8px'
+                      }}>
+                        [{walletData.alias}]
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--accent-blue-light)', marginTop: '4px', letterSpacing: '-0.5px' }}>
                     {walletData.balance.toFixed(2)} COIN
                   </div>
                 </div>
 
-                <div style={{ marginTop: '12px' }}>
-                  <span style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>Genel Cüzdan Adresiniz:</span>
+                <div style={{ marginTop: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Genel Adres:</span>
+                    <button
+                      onClick={copyAddress}
+                      style={{
+                        background: copied ? 'rgba(16,185,129,0.15)' : 'transparent',
+                        border: 'none',
+                        color: copied ? '#10b981' : 'var(--accent-blue-light)',
+                        fontSize: '10px',
+                        fontWeight: '600',
+                        padding: '1px 4px'
+                      }}
+                    >
+                      {copied ? '✓ Kopyalandı' : '📋 Kopyala'}
+                    </button>
+                  </div>
                   <div style={{
                     background: 'var(--bg-terminal)',
                     border: '1px solid var(--border)',
-                    padding: '6px 8px',
-                    borderRadius: '5px',
+                    padding: '4px 6px',
+                    borderRadius: '4px',
                     color: 'var(--text-main)',
-                    fontSize: '10px',
+                    fontSize: '9.5px',
                     fontFamily: 'monospace',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
-                    marginTop: '4px'
+                    marginTop: '2px'
                   }}>
                     {walletData.address}
                   </div>
                 </div>
               </div>
 
-              {/* Transfer Form */}
+              {/* Card 2: Quick Transfer Form */}
               <div style={{
                 background: 'var(--bg-card)',
                 border: '1px solid var(--border)',
-                borderRadius: '10px',
-                padding: '16px',
+                borderRadius: '8px',
+                padding: '12px 14px',
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'space-between'
               }}>
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <span style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '600' }}>
                       TRANSFER GÖNDER
                     </span>
-                    <span style={{ fontSize: '10.5px', color: 'var(--accent-blue-light)' }}>
+                    <span style={{ fontSize: '10px', color: 'var(--accent-blue-light)' }}>
                       🔒 Otomatik RSA İmzalı
                     </span>
                   </div>
 
-                  <form onSubmit={handleSendTx} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <form onSubmit={handleSendTx} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <input
                       type="text"
-                      placeholder="Alıcı Cüzdan Adresi (Public Key)"
+                      placeholder="Alıcı Adresi veya 4 Harfli İsmi (Örn: LUNA)"
                       value={recipient}
                       onChange={e => setRecipient(e.target.value)}
                       style={{
                         width: '100%',
                         background: 'var(--bg-main)',
                         border: '1px solid var(--border)',
-                        borderRadius: '6px',
-                        padding: '7px 10px',
-                        fontSize: '11.5px'
+                        borderRadius: '5px',
+                        padding: '6px 8px',
+                        fontSize: '11px'
                       }}
                     />
 
-                    <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ display: 'flex', gap: '6px' }}>
                       <input
                         type="number"
                         step="0.01"
@@ -868,9 +908,9 @@ export default function App() {
                           flex: 1,
                           background: 'var(--bg-main)',
                           border: '1px solid var(--border)',
-                          borderRadius: '6px',
-                          padding: '7px 10px',
-                          fontSize: '11.5px'
+                          borderRadius: '5px',
+                          padding: '6px 8px',
+                          fontSize: '11px'
                         }}
                       />
                       <button
@@ -880,228 +920,263 @@ export default function App() {
                           background: 'var(--accent-blue)',
                           color: '#fff',
                           border: 'none',
-                          borderRadius: '6px',
-                          padding: '7px 16px',
-                          fontSize: '11.5px',
+                          borderRadius: '5px',
+                          padding: '6px 14px',
+                          fontSize: '11px',
                           fontWeight: '700'
                         }}
                       >
-                        {isSubmitting ? 'İmzalanıyor...' : 'Gönder 💸'}
+                        {isSubmitting ? '...' : 'Gönder 💸'}
                       </button>
                     </div>
                   </form>
                 </div>
               </div>
 
-              {/* Mining Controls */}
+              {/* Card 3: Mining & Consensus Controls */}
               <div style={{
                 background: 'var(--bg-card)',
                 border: '1px solid var(--border)',
-                borderRadius: '10px',
-                padding: '16px',
+                borderRadius: '8px',
+                padding: '12px 14px',
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'space-between'
               }}>
                 <div>
-                  <span style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600', display: 'block', marginBottom: '10px' }}>
-                    MADENCİLİK & MUTABAKAT
-                  </span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '600' }}>
+                      KONSENSÜS & POI
+                    </span>
+                    <span style={{ fontSize: '10px', color: 'var(--accent-blue-light)', fontFamily: 'monospace' }}>
+                      Zorluk: {difficulty}
+                    </span>
+                  </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <button
                       onClick={handleMineBlock}
                       style={{
                         background: 'var(--accent-blue)',
                         color: '#fff',
                         border: 'none',
-                        borderRadius: '6px',
-                        padding: '8px 12px',
-                        fontSize: '11.5px',
+                        borderRadius: '5px',
+                        padding: '6px 10px',
+                        fontSize: '11px',
                         fontWeight: '700'
                       }}
                     >
-                      ⛏️ 1 Blok Kaz (Manuel PoW)
+                      ⛏️ 1 Blok Kaz (+50 Coin)
                     </button>
 
-                    <button
-                      onClick={handleToggleAutoMine}
-                      style={{
-                        background: isMining ? 'rgba(37,99,235,0.2)' : 'rgba(255,255,255,0.04)',
-                        border: `1px solid ${isMining ? 'var(--accent-blue)' : 'var(--border)'}`,
-                        color: isMining ? 'var(--accent-blue-light)' : 'var(--text-main)',
-                        borderRadius: '6px',
-                        padding: '7px 12px',
-                        fontSize: '11.5px',
-                        fontWeight: '600'
-                      }}
-                    >
-                      {isMining ? '⏹️ Otomatik Madenci: AÇIK' : '▶️ Otomatik Madenci Başlat'}
-                    </button>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button
+                        onClick={handleToggleAutoMine}
+                        style={{
+                          flex: 1,
+                          background: isMining ? 'rgba(37,99,235,0.2)' : 'rgba(255,255,255,0.03)',
+                          border: `1px solid ${isMining ? 'var(--accent-blue)' : 'var(--border)'}`,
+                          color: isMining ? 'var(--accent-blue-light)' : 'var(--text-main)',
+                          borderRadius: '5px',
+                          padding: '5px 8px',
+                          fontSize: '10.5px',
+                          fontWeight: '600'
+                        }}
+                      >
+                        {isMining ? '⏹️ Oto-Madenci: Açık' : '▶️ Oto-Madenci'}
+                      </button>
 
-                    <button
-                      onClick={handleConsensusSync}
-                      style={{
-                        background: 'transparent',
-                        border: '1px solid var(--border)',
-                        color: 'var(--text-muted)',
-                        borderRadius: '6px',
-                        padding: '6px 12px',
-                        fontSize: '11px'
-                      }}
-                    >
-                      🔄 Zinciri Eşitle (Sync)
-                    </button>
+                      <button
+                        onClick={handleConsensusSync}
+                        title="Eşlerle Zinciri Senkronize Et"
+                        style={{
+                          background: 'transparent',
+                          border: '1px solid var(--border)',
+                          color: 'var(--text-muted)',
+                          borderRadius: '5px',
+                          padding: '5px 8px',
+                          fontSize: '10.5px'
+                        }}
+                      >
+                        🔄 Senk
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Embedded Live Terminal */}
-            <div style={{
-              background: 'var(--bg-card)',
-              border: '1px solid var(--border)',
-              borderRadius: '10px',
-              padding: '14px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '8px'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '11.5px', fontWeight: '700' }}>
-                  🖥️ Node {currentPort} Canlı PoW & Ağ Konsolu
-                </span>
-                <span style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>
-                  {logs.length} Log Kaydı
-                </span>
-              </div>
-              <div
-                ref={terminalRef}
-                style={{
-                  background: 'var(--bg-terminal)',
-                  border: '1px solid var(--border)',
-                  borderRadius: '6px',
-                  height: '190px',
-                  overflowY: 'auto',
-                  padding: '10px 12px',
-                  fontSize: '11px',
-                  lineHeight: '1.5',
-                  fontFamily: 'monospace'
-                }}
-              >
-                {logs.map((log, idx) => {
-                  let color = '#9ca3af'
-                  if (log.includes('[MINE]') || log.includes('[Miner]')) color = 'var(--accent-blue-light)'
-                  if (log.includes('[P2P]')) color = '#e5e7eb'
-                  if (log.includes('[ERROR]') || log.includes('[WARN]')) color = 'var(--accent-rose)'
-                  if (log.includes('[WALLET]')) color = '#93c5fd'
-                  return (
-                    <div key={idx} style={{ color, marginBottom: '2px', wordBreak: 'break-all' }}>
-                      {log}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
+            {/* Lower Row: 2-Column Balanced Dashboard */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '12px', alignItems: 'stretch' }}>
 
-            {/* Blockchain Explorer & Mempool */}
-            <div style={{
-              background: 'var(--bg-card)',
-              border: '1px solid var(--border)',
-              borderRadius: '10px',
-              padding: '16px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '12px'
-            }}>
-              <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid var(--border)', paddingBottom: '8px' }}>
-                <button
-                  onClick={() => setActiveTab('chain')}
-                  style={{
-                    background: activeTab === 'chain' ? 'rgba(37,99,235,0.15)' : 'transparent',
-                    border: activeTab === 'chain' ? '1px solid var(--accent-blue)' : 'none',
-                    color: activeTab === 'chain' ? 'var(--accent-blue-light)' : 'var(--text-muted)',
-                    padding: '6px 12px',
-                    borderRadius: '6px',
-                    fontSize: '11.5px',
-                    fontWeight: '700'
-                  }}
-                >
-                  🔗 Blokzincir Defteri ({chainData.length})
-                </button>
-                <button
-                  onClick={() => setActiveTab('mempool')}
-                  style={{
-                    background: activeTab === 'mempool' ? 'rgba(37,99,235,0.15)' : 'transparent',
-                    border: activeTab === 'mempool' ? '1px solid var(--accent-blue)' : 'none',
-                    color: activeTab === 'mempool' ? 'var(--accent-blue-light)' : 'var(--text-muted)',
-                    padding: '6px 12px',
-                    borderRadius: '6px',
-                    fontSize: '11.5px',
-                    fontWeight: '700'
-                  }}
-                >
-                  ⏳ Mempool ({pendingTxs.length})
-                </button>
-              </div>
-
-              {activeTab === 'chain' ? (
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-                  gap: '12px'
-                }}>
-                  {chainData.slice().reverse().map(block => (
-                    <div key={block.index} style={{
-                      background: 'var(--bg-main)',
-                      border: '1px solid var(--border)',
-                      borderRadius: '8px',
-                      padding: '12px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '6px'
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ fontWeight: '700', color: 'var(--accent-blue-light)', fontSize: '12.5px' }}>
-                          {block.index === 0 ? '🌟 Genesis Block #0' : `📦 Blok #${block.index}`}
-                        </span>
-                        <span style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>
-                          {new Date(block.timestamp * 1000).toLocaleTimeString()}
-                        </span>
-                      </div>
-                      <div style={{ fontSize: '10px' }}>
-                        <span style={{ color: 'var(--text-muted)' }}>Hash:</span>
-                        <div style={{ color: 'var(--text-main)', fontFamily: 'monospace', wordBreak: 'break-all', marginTop: '2px' }}>
-                          {block.hash}
-                        </div>
-                      </div>
-                      <div style={{ borderTop: '1px solid var(--border)', paddingTop: '4px', marginTop: '2px', fontSize: '10.5px' }}>
-                        {block.transactions.map((tx, i) => (
-                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
-                            <span style={{ color: 'var(--text-muted)' }}>{tx.sender === null || tx.sender === 'COINBASE' ? '⛏️ Madenci Ödülü' : 'Transfer'}</span>
-                            <strong style={{ color: 'var(--accent-blue-light)' }}>+{tx.amount} Coin</strong>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
+              {/* Left Column: Live Terminal */}
+              <div style={{
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border)',
+                borderRadius: '8px',
+                padding: '12px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 4px #10b981' }} />
+                    <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-main)' }}>
+                      Canlı Düğüm Konsolu
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                    {logs.length} Kayıt
+                  </span>
                 </div>
-              ) : (
-                <div>
-                  {pendingTxs.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '16px', color: 'var(--text-muted)', fontSize: '11.5px' }}>
-                      Mempool boş. Bekleyen transfer bulunmuyor.
+                <div
+                  ref={terminalRef}
+                  style={{
+                    background: 'var(--bg-terminal)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '5px',
+                    height: '270px',
+                    overflowY: 'auto',
+                    padding: '8px 10px',
+                    fontSize: '10.5px',
+                    lineHeight: '1.45',
+                    fontFamily: 'monospace'
+                  }}
+                >
+                  {logs.map((log, idx) => {
+                    let color = '#9ca3af'
+                    if (log.includes('[MINE]') || log.includes('[Miner]')) color = 'var(--accent-blue-light)'
+                    if (log.includes('[P2P]')) color = '#e5e7eb'
+                    if (log.includes('[ERROR]') || log.includes('[WARN]')) color = 'var(--accent-rose)'
+                    if (log.includes('[WALLET]')) color = '#93c5fd'
+                    return (
+                      <div key={idx} style={{ color, marginBottom: '2px', wordBreak: 'break-all' }}>
+                        {log}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Right Column: Explorer & Mempool Tabs */}
+              <div style={{
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border)',
+                borderRadius: '8px',
+                padding: '12px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
+              }}>
+                <div style={{ display: 'flex', gap: '6px', borderBottom: '1px solid var(--border)', paddingBottom: '6px' }}>
+                  <button
+                    onClick={() => setActiveTab('chain')}
+                    style={{
+                      background: activeTab === 'chain' ? 'rgba(37,99,235,0.15)' : 'transparent',
+                      border: activeTab === 'chain' ? '1px solid var(--accent-blue)' : 'none',
+                      color: activeTab === 'chain' ? 'var(--accent-blue-light)' : 'var(--text-muted)',
+                      padding: '4px 10px',
+                      borderRadius: '5px',
+                      fontSize: '11px',
+                      fontWeight: '700'
+                    }}
+                  >
+                    🔗 Blokzincir ({chainData.length})
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('mempool')}
+                    style={{
+                      background: activeTab === 'mempool' ? 'rgba(37,99,235,0.15)' : 'transparent',
+                      border: activeTab === 'mempool' ? '1px solid var(--accent-blue)' : 'none',
+                      color: activeTab === 'mempool' ? 'var(--accent-blue-light)' : 'var(--text-muted)',
+                      padding: '4px 10px',
+                      borderRadius: '5px',
+                      fontSize: '11px',
+                      fontWeight: '700'
+                    }}
+                  >
+                    ⏳ Mempool ({pendingTxs.length})
+                  </button>
+                </div>
+
+                <div style={{ height: '270px', overflowY: 'auto', paddingRight: '4px' }}>
+                  {activeTab === 'chain' ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {chainData.slice().reverse().map(block => (
+                        <div key={block.index} style={{
+                          background: 'var(--bg-main)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '6px',
+                          padding: '8px 10px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '4px'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontWeight: '700', color: 'var(--accent-blue-light)', fontSize: '11.5px' }}>
+                              {block.index === 0 ? '🌟 Genesis Block #0' : `📦 Blok #${block.index}`}
+                            </span>
+                            <span style={{
+                              color: '#fff',
+                              fontWeight: '700',
+                              background: 'rgba(37,99,235,0.2)',
+                              padding: '1px 5px',
+                              borderRadius: '3px',
+                              fontSize: '10px'
+                            }}>
+                              ⛏️ {block.miner_alias || (block.index === 0 ? 'GENESIS' : 'BİLİNMİYOR')}
+                            </span>
+                            <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                              {new Date(block.timestamp * 1000).toLocaleTimeString()}
+                            </span>
+                          </div>
+
+                          <div style={{ fontSize: '9.5px', color: 'var(--text-muted)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            Hash: {block.hash}
+                          </div>
+
+                          <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '4px', fontSize: '10.5px' }}>
+                            {block.transactions.map((tx, i) => (
+                              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1px 0' }}>
+                                <span style={{ color: 'var(--text-muted)' }}>
+                                  {tx.sender === null || tx.sender === 'COINBASE' ? (
+                                    <span style={{ color: '#10b981', fontWeight: '600' }}>
+                                      🎁 Blok Ödülü ➜ [{tx.recipient_alias || 'MADENCİ'}]
+                                    </span>
+                                  ) : (
+                                    <span>
+                                      <strong style={{ color: 'var(--accent-blue-light)' }}>[{tx.sender_alias || 'GÖNDEREN'}]</strong> ➜ <strong style={{ color: 'var(--accent-blue-light)' }}>[{tx.recipient_alias || 'ALICI'}]</strong>
+                                    </span>
+                                  )}
+                                </span>
+                                <strong style={{ color: '#fff' }}>+{tx.amount} Coin</strong>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   ) : (
-                    pendingTxs.map((tx, i) => (
-                      <div key={i} style={{ padding: '8px 12px', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '6px', marginBottom: '6px', display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: '11px', fontFamily: 'monospace' }}>{tx.sender ? `${tx.sender.substring(0, 10)}...` : 'Transfer'} ➜ {tx.recipient.substring(0, 10)}...</span>
-                        <strong style={{ color: 'var(--accent-blue-light)', fontSize: '11.5px' }}>{tx.amount} Coin</strong>
-                      </div>
-                    ))
+                    <div>
+                      {pendingTxs.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)', fontSize: '11px' }}>
+                          Mempool boş. Bekleyen transfer bulunmuyor.
+                        </div>
+                      ) : (
+                        pendingTxs.map((tx, i) => (
+                          <div key={i} style={{ padding: '6px 10px', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '5px', marginBottom: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '11px' }}>
+                              <strong style={{ color: 'var(--accent-blue-light)' }}>[{tx.sender_alias || '...'}]</strong> ➜ <strong style={{ color: 'var(--accent-blue-light)' }}>[{tx.recipient_alias || '...'}]</strong>
+                            </span>
+                            <strong style={{ color: 'var(--accent-blue-light)', fontSize: '11px' }}>{tx.amount} Coin</strong>
+                          </div>
+                        ))
+                      )}
+                    </div>
                   )}
                 </div>
-              )}
+              </div>
             </div>
           </>
         )}

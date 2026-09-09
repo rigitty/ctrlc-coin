@@ -1,4 +1,4 @@
-const { app, BrowserWindow, screen } = require('electron');
+const { app, BrowserWindow, screen, ipcMain } = require('electron');
 const path = require('path');
 
 let mainWindow = null;
@@ -17,17 +17,18 @@ function createWindow() {
   }
 
   const winWidth = Math.min(1180, width - 40);
-  const winHeight = Math.min(860, height - 40);
+  const winHeight = Math.min(840, height - 40);
 
   mainWindow = new BrowserWindow({
     width: winWidth,
     height: winHeight,
-    minWidth: 800,
-    minHeight: 600,
-    title: `CtrlC-Coin Desktop (: ${targetPort})`,
+    minWidth: 840,
+    minHeight: 580,
+    frame: false, // Frameless window - custom app titlebar
     backgroundColor: '#08090c',
     icon: path.join(__dirname, 'public', 'logo.png'),
     webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
       contextIsolation: true
     },
@@ -41,6 +42,24 @@ function createWindow() {
     mainWindow = null;
   });
 }
+
+ipcMain.on('window-minimize', () => {
+  if (mainWindow) mainWindow.minimize();
+});
+
+ipcMain.on('window-maximize', () => {
+  if (mainWindow) {
+    if (mainWindow.isMaximized()) {
+      mainWindow.unmaximize();
+    } else {
+      mainWindow.maximize();
+    }
+  }
+});
+
+ipcMain.on('window-close', () => {
+  if (mainWindow) mainWindow.close();
+});
 
 app.whenReady().then(createWindow);
 

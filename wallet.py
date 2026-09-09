@@ -55,8 +55,9 @@ def get_deterministic_prime(seed_bytes, counter, min_val=1000, max_val=5000):
         i += 1
 
 class Wallet:
-    def __init__(self, private_key=None, public_key=None, mnemonic=None):
+    def __init__(self, private_key=None, public_key=None, mnemonic=None, alias=None):
         self.mnemonic = mnemonic
+        self.alias = alias
         if private_key is not None and public_key is not None:
             self.private_key = tuple(private_key)
             self.public_key = str(public_key)
@@ -148,6 +149,7 @@ class Wallet:
         return {
             "version": 1,
             "address": self.public_key,
+            "alias": getattr(self, "alias", None),
             "crypto": {
                 "kdf": "pbkdf2-sha256",
                 "salt": salt.hex(),
@@ -182,10 +184,13 @@ class Wallet:
         return cls(
             private_key=data["private_key"],
             public_key=keystore_data["address"],
-            mnemonic=data.get("mnemonic")
+            mnemonic=data.get("mnemonic"),
+            alias=keystore_data.get("alias")
         )
 
-    def save_keystore_file(self, filepath, password):
+    def save_keystore_file(self, filepath, password, alias=None):
+        if alias:
+            self.alias = alias
         keystore_dict = self.export_keystore(password)
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(keystore_dict, f, indent=2)

@@ -20,21 +20,46 @@ class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     daemon_threads = True
 
 NODE_PORT = int(sys.argv[1]) if len(sys.argv) > 1 else Config.DEFAULT_PORT
-DEFAULT_NODE_NAME = f"Node_{NODE_PORT}"
+
+def generate_random_alias():
+    """Generates a memorable 4-letter uppercase name (e.g. NOVA, ZEUS, LUNA, KORA)."""
+    consonants = "BCDFGHJKLMNPQRSTVWXYZ"
+    vowels = "AEIOU"
+    pattern = random.choice(["CVCV", "CVCC", "VCVC"])
+    return "".join(random.choice(consonants) if c == "C" else random.choice(vowels) for c in pattern).upper()
 
 CHAIN_FILE = f"chaindata_{NODE_PORT}.json"
 KEYSTORE_FILE = f"keystore_{NODE_PORT}.json"
 
 active_node_wallet = None
 keystore_address = None
+keystore_alias = None
+ALIASES = {}
 
 if os.path.exists(KEYSTORE_FILE):
     try:
         with open(KEYSTORE_FILE, "r", encoding="utf-8") as f:
             keystore_data = json.load(f)
             keystore_address = keystore_data.get("address")
+            keystore_alias = keystore_data.get("alias")
+            if not keystore_alias:
+                keystore_alias = generate_random_alias()
+                keystore_data["alias"] = keystore_alias
+                with open(KEYSTORE_FILE, "w", encoding="utf-8") as fw:
+                    json.dump(keystore_data, fw, indent=2)
+            if keystore_address and keystore_alias:
+                ALIASES[keystore_address] = keystore_alias
     except Exception:
         pass
+
+def get_current_alias():
+    if active_node_wallet and getattr(active_node_wallet, "alias", None):
+        return active_node_wallet.alias
+    if keystore_alias:
+        return keystore_alias
+    return f"NODE_{NODE_PORT}"
+
+DEFAULT_NODE_NAME = get_current_alias()
 
 # Load existing blockchain or generate and save
 if os.path.exists(CHAIN_FILE):
@@ -55,7 +80,6 @@ def save_node_state():
 
 peers = set()
 auto_mining_enabled = Config.AUTO_MINING_ENABLED
-ALIASES = {}
 
 WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
 
@@ -66,9 +90,9 @@ def log_terminal(msg, level="info"):
     timestamp = time.strftime("%H:%M:%S")
     entry = f"[{timestamp}] [{level.upper()}] {msg}"
     node_logs.append(entry)
-    print(f"[{DEFAULT_NODE_NAME}] {entry}")
+    print(f"[{get_current_alias()}] {entry}")
 
-log_terminal(f"Node initialized on port {NODE_PORT}")
+log_terminal(f"Node initialized on port {NODE_PORT} (Alias: {get_current_alias()})")
 
 def format_address(address):
     if not address or address == "COINBASE":
@@ -173,6 +197,70 @@ def auto_miner_loop():
             except Exception as e:
                 log_terminal(f"Auto-Miner error: {e}", "error")
 
+def auto_discovery_loop():
+    """
+    Decentralized P2P Peer Discovery & Health Monitor.
+    Automatically scans local network ports (5000-5010) to discover active CtrlC-Coin nodes,
+    initiates mutual handshakes, synchronizes blockchain states, and prunes dead connections.
+    """
+    time.sleep(1.0)
+    while True:
+        # 1. Probe candidate ports on local network
+        candidate_ports = [p for p in range(5000, 5011) if p != NODE_PORT]
+        for p in candidate_ports:
+            peer_url = f"http://127.0.0.1:{p}"
+            if peer_url in peers:
+                continue
+
+            try:
+                probe_req = urllib.request.Request(f"{peer_url}/wallet/status")
+                with urllib.request.urlopen(probe_req, timeout=0.6) as resp:
+                    if resp.status == 200:
+                        peer_info = json.loads(resp.read().decode("utf-8"))
+                        p_addr = peer_info.get("address")
+                        p_alias = peer_info.get("alias")
+                        if p_addr and p_alias:
+                            ALIASES[p_addr] = p_alias
+                        peers.add(peer_url)
+                        display_peer = f"[{p_alias}]" if p_alias else f"Port {p}"
+                        log_terminal(f"Auto-Discovery: Found active peer {display_peer}! Initiating handshake...", "p2p")
+
+                        # Mutual handshake: register our node on the discovered peer
+                        try:
+                            my_addr = keystore_address or (active_node_wallet.public_key if active_node_wallet else None)
+                            handshake_payload = json.dumps({
+                                "nodes": [f"http://127.0.0.1:{NODE_PORT}"],
+                                "alias": get_current_alias(),
+                                "address": my_addr
+                            }).encode("utf-8")
+                            reg_req = urllib.request.Request(
+                                f"{peer_url}/nodes/register",
+                                data=handshake_payload,
+                                headers={"Content-Type": "application/json"}
+                            )
+                            with urllib.request.urlopen(reg_req, timeout=1.0) as reg_resp:
+                                reg_resp.read()
+                        except Exception:
+                            pass
+
+                        # Immediate ledger synchronization
+                        sync_chain_with_peers()
+            except Exception:
+                pass
+
+        # 2. Health check active peers and prune disconnected ones
+        for active_peer in list(peers):
+            try:
+                check_req = urllib.request.Request(f"{active_peer}/wallet/status")
+                with urllib.request.urlopen(check_req, timeout=0.8) as resp:
+                    if resp.status != 200:
+                        raise Exception("Unreachable")
+            except Exception:
+                peers.discard(active_peer)
+                log_terminal(f"P2P Network: Peer {active_peer} disconnected.", "warn")
+
+        time.sleep(2.0)
+
 class BlockchainHTTPHandler(BaseHTTPRequestHandler):
     def _send_cors_headers(self):
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -240,7 +328,7 @@ class BlockchainHTTPHandler(BaseHTTPRequestHandler):
             self._send_json_response({
                 "status": status,
                 "address": addr,
-                "alias": DEFAULT_NODE_NAME
+                "alias": get_current_alias()
             })
 
         elif parsed.path == "/wallet/current":
@@ -248,7 +336,7 @@ class BlockchainHTTPHandler(BaseHTTPRequestHandler):
                 status = "locked" if os.path.exists(KEYSTORE_FILE) else "no_wallet"
                 self._send_json_response({
                     "status": status,
-                    "alias": DEFAULT_NODE_NAME,
+                    "alias": get_current_alias(),
                     "address": keystore_address,
                     "public_key": keystore_address,
                     "error": "Cüzdan kilitli veya henüz oluşturulmadı"
@@ -256,39 +344,64 @@ class BlockchainHTTPHandler(BaseHTTPRequestHandler):
             else:
                 self._send_json_response({
                     "status": "unlocked",
-                    "alias": DEFAULT_NODE_NAME,
+                    "alias": get_current_alias(),
                     "address": active_node_wallet.public_key,
                     "public_key": active_node_wallet.public_key,
                     "mnemonic": getattr(active_node_wallet, "mnemonic", "")
                 })
 
         elif parsed.path == "/chain":
-            chain_data = [
-                {
+            chain_data = []
+            for b in blockchain.chain:
+                miner_addr = None
+                if b.transactions:
+                    first_tx = b.transactions[0]
+                    first_s = first_tx.sender if hasattr(first_tx, "sender") else first_tx.get("sender")
+                    first_r = first_tx.recipient if hasattr(first_tx, "recipient") else first_tx.get("recipient")
+                    if first_s is None or first_s == "COINBASE":
+                        miner_addr = first_r
+
+                miner_alias = ALIASES.get(miner_addr, format_address(miner_addr)) if miner_addr else "GENESIS"
+
+                tx_list = []
+                for tx in b.transactions:
+                    tx_dict = tx if isinstance(tx, dict) else tx.to_dict()
+                    s = tx_dict.get("sender")
+                    r = tx_dict.get("recipient")
+                    tx_dict["sender_alias"] = ALIASES.get(s, "COINBASE" if not s else format_address(s))
+                    tx_dict["recipient_alias"] = ALIASES.get(r, format_address(r))
+                    tx_list.append(tx_dict)
+
+                chain_data.append({
                     "index": b.index,
                     "hash": b.hash,
                     "previous_hash": b.previous_hash,
                     "nonce": b.nonce,
                     "difficulty": getattr(b, "difficulty", 2),
                     "timestamp": b.timestamp,
-                    "transactions": [
-                        tx if isinstance(tx, dict) else tx.to_dict()
-                        for tx in b.transactions
-                    ]
-                }
-                for b in blockchain.chain
-            ]
+                    "miner": miner_addr,
+                    "miner_alias": miner_alias,
+                    "transactions": tx_list
+                })
+
             self._send_json_response({
                 "length": len(chain_data),
                 "total_peers": len(peers),
                 "auto_mining": auto_mining_enabled,
-                "node_name": DEFAULT_NODE_NAME,
+                "node_name": get_current_alias(),
                 "aliases": ALIASES,
                 "chain": chain_data
             })
 
         elif parsed.path == "/pending":
-            pending = [tx.to_dict() for tx in blockchain.pending_transactions]
+            pending = []
+            for tx in blockchain.pending_transactions:
+                t_dict = tx.to_dict()
+                s = t_dict.get("sender")
+                r = t_dict.get("recipient")
+                t_dict["sender_alias"] = ALIASES.get(s, "COINBASE" if not s else format_address(s))
+                t_dict["recipient_alias"] = ALIASES.get(r, format_address(r))
+                pending.append(t_dict)
             self._send_json_response({"pending_transactions": pending})
 
         elif parsed.path == "/nodes/resolve":
@@ -302,7 +415,7 @@ class BlockchainHTTPHandler(BaseHTTPRequestHandler):
             self._send_json_response({"error": "Endpoint not found"}, 404)
 
     def do_POST(self):
-        global auto_mining_enabled, active_node_wallet, keystore_address
+        global auto_mining_enabled, active_node_wallet, keystore_address, keystore_alias
         parsed = urlparse(self.path)
         content_length = int(self.headers.get("Content-Length", 0))
         post_body = self.rfile.read(content_length).decode("utf-8") if content_length > 0 else "{}"
@@ -317,17 +430,20 @@ class BlockchainHTTPHandler(BaseHTTPRequestHandler):
                 self._send_json_response({"error": "Lütfen cüzdanı şifrelemek için bir parola belirleyin."}, 400)
                 return
             w = Wallet.generate_with_mnemonic()
-            w.save_keystore_file(KEYSTORE_FILE, password)
+            alias = generate_random_alias()
+            w.alias = alias
+            w.save_keystore_file(KEYSTORE_FILE, password, alias=alias)
             active_node_wallet = w
             keystore_address = w.public_key
-            ALIASES[w.public_key] = DEFAULT_NODE_NAME
-            log_terminal(f"Created new HD Wallet (BIP-39 12 words) for {DEFAULT_NODE_NAME}", "wallet")
+            keystore_alias = alias
+            ALIASES[w.public_key] = alias
+            log_terminal(f"Created new HD Wallet [{alias}] (BIP-39 12 words)", "wallet")
             self._send_json_response({
                 "status": "unlocked",
                 "address": w.public_key,
                 "public_key": w.public_key,
                 "mnemonic": w.mnemonic,
-                "alias": DEFAULT_NODE_NAME
+                "alias": alias
             }, 201)
 
         elif parsed.path == "/wallet/import":
@@ -338,16 +454,19 @@ class BlockchainHTTPHandler(BaseHTTPRequestHandler):
                 return
             try:
                 w = Wallet.from_mnemonic(mnemonic_str)
-                w.save_keystore_file(KEYSTORE_FILE, password)
+                alias = generate_random_alias()
+                w.alias = alias
+                w.save_keystore_file(KEYSTORE_FILE, password, alias=alias)
                 active_node_wallet = w
                 keystore_address = w.public_key
-                ALIASES[w.public_key] = DEFAULT_NODE_NAME
-                log_terminal(f"Imported HD Wallet via seed phrase for {DEFAULT_NODE_NAME}", "wallet")
+                keystore_alias = alias
+                ALIASES[w.public_key] = alias
+                log_terminal(f"Imported HD Wallet [{alias}] via seed phrase", "wallet")
                 self._send_json_response({
                     "status": "unlocked",
                     "address": w.public_key,
                     "public_key": w.public_key,
-                    "alias": DEFAULT_NODE_NAME
+                    "alias": alias
                 }, 200)
             except Exception as e:
                 self._send_json_response({"error": f"İçe aktarma hatası: {e}"}, 400)
@@ -359,15 +478,19 @@ class BlockchainHTTPHandler(BaseHTTPRequestHandler):
                 return
             try:
                 w = Wallet.load_keystore_file(KEYSTORE_FILE, password)
+                if not getattr(w, "alias", None):
+                    w.alias = keystore_alias or generate_random_alias()
+                    w.save_keystore_file(KEYSTORE_FILE, password, alias=w.alias)
                 active_node_wallet = w
                 keystore_address = w.public_key
-                ALIASES[w.public_key] = DEFAULT_NODE_NAME
-                log_terminal(f"Wallet unlocked successfully for {DEFAULT_NODE_NAME}", "wallet")
+                keystore_alias = w.alias
+                ALIASES[w.public_key] = w.alias
+                log_terminal(f"Wallet [{w.alias}] unlocked successfully", "wallet")
                 self._send_json_response({
                     "status": "unlocked",
                     "address": w.public_key,
                     "public_key": w.public_key,
-                    "alias": DEFAULT_NODE_NAME,
+                    "alias": w.alias,
                     "mnemonic": getattr(w, "mnemonic", "")
                 }, 200)
             except Exception as e:
@@ -520,10 +643,27 @@ class BlockchainHTTPHandler(BaseHTTPRequestHandler):
 
         elif parsed.path == "/nodes/register":
             nodes_list = body.get("nodes", [])
+            remote_alias = body.get("alias")
+            remote_addr = body.get("address")
+            if remote_addr and remote_alias:
+                ALIASES[remote_addr] = remote_alias
+
+            my_clean_urls = {
+                f"http://127.0.0.1:{NODE_PORT}",
+                f"http://localhost:{NODE_PORT}"
+            }
+            new_added = False
             for node in nodes_list:
-                peers.add(node.rstrip("/"))
-            log_terminal(f"Registered peer nodes: {nodes_list}", "p2p")
-            self._send_json_response({"message": "Peers registered", "total_peers": list(peers)})
+                cleaned = node.rstrip("/")
+                if cleaned not in my_clean_urls and cleaned not in peers:
+                    peers.add(cleaned)
+                    new_added = True
+                    log_terminal(f"P2P Handshake: Connected with peer [{remote_alias or cleaned}]", "p2p")
+
+            if new_added:
+                threading.Thread(target=sync_chain_with_peers, daemon=True).start()
+
+            self._send_json_response({"message": "Peers registered", "total_peers": len(peers), "aliases": ALIASES})
 
         else:
             self._send_json_response({"error": "Endpoint not found"}, 404)
@@ -532,6 +672,9 @@ def run():
     server_address = ("", NODE_PORT)
     miner_thread = threading.Thread(target=auto_miner_loop, daemon=True)
     miner_thread.start()
+
+    discovery_thread = threading.Thread(target=auto_discovery_loop, daemon=True)
+    discovery_thread.start()
 
     httpd = ThreadedHTTPServer(server_address, BlockchainHTTPHandler)
     log_terminal(f"HTTP Server online on port {NODE_PORT}")
