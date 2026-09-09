@@ -1,12 +1,12 @@
-﻿import hashlib
+import hashlib
 from wallet import Wallet
 
 class Transaction:
-    def __init__(self, sender, recipient, amount):
+    def __init__(self, sender, recipient, amount, signature=None):
         self.sender = sender
         self.recipient = recipient
         self.amount = amount
-        self.signature = None
+        self.signature = signature
 
     def calculate_hash(self):
         content = f"{self.sender}{self.recipient}{self.amount}"

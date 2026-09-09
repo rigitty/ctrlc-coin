@@ -50,8 +50,10 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 
-# Blokzincir Yerel Defter Kayıtları (Chain Data)
+# Blokzincir Yerel Defter Kayıtları ve Cüzdan Anahtarları
 chaindata*.json
+wallet*.json
+keystore*.json
 *.sqlite
 *.db
 

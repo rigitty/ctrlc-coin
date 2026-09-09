@@ -1,4 +1,4 @@
-﻿import collections
+import collections
 import json
 import os
 import random
@@ -19,27 +19,44 @@ from wallet import Wallet
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     daemon_threads = True
 
-blockchain = Blockchain()
+NODE_PORT = int(sys.argv[1]) if len(sys.argv) > 1 else Config.DEFAULT_PORT
+DEFAULT_NODE_NAME = f"Node_{NODE_PORT}"
+
+CHAIN_FILE = f"chaindata_{NODE_PORT}.json"
+KEYSTORE_FILE = f"keystore_{NODE_PORT}.json"
+
+active_node_wallet = None
+keystore_address = None
+
+if os.path.exists(KEYSTORE_FILE):
+    try:
+        with open(KEYSTORE_FILE, "r", encoding="utf-8") as f:
+            keystore_data = json.load(f)
+            keystore_address = keystore_data.get("address")
+    except Exception:
+        pass
+
+# Load existing blockchain or generate and save
+if os.path.exists(CHAIN_FILE):
+    try:
+        blockchain = Blockchain.load_from_file(CHAIN_FILE)
+    except Exception:
+        blockchain = Blockchain()
+        blockchain.save_to_file(CHAIN_FILE)
+else:
+    blockchain = Blockchain()
+    blockchain.save_to_file(CHAIN_FILE)
+
+def save_node_state():
+    try:
+        blockchain.save_to_file(CHAIN_FILE)
+    except Exception as e:
+        log_terminal(f"State save error: {e}", "warn")
+
 peers = set()
 auto_mining_enabled = Config.AUTO_MINING_ENABLED
+ALIASES = {}
 
-NODE_PORT = int(sys.argv[1]) if len(sys.argv) > 1 else Config.DEFAULT_PORT
-PORT_NAME_MAP = {
-    5000: "Alice",
-    5001: "Kevin",
-    5002: "Bob",
-    5003: "Charlie",
-    5004: "Emma"
-}
-DEFAULT_NODE_NAME = PORT_NAME_MAP.get(NODE_PORT, f"Node_{NODE_PORT}")
-
-active_node_wallet = Wallet()
-ALIASES = {
-    active_node_wallet.public_key: DEFAULT_NODE_NAME
-}
-
-NAMES_POOL = ["Alice", "Kevin", "Bob", "Charlie", "David", "Emma", "Grace", "Oliver", "Sophia", "Lucas", "Liam", "Mia", "Zoe", "Noah", "Leo"]
-random.shuffle(NAMES_POOL)
 WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
 
 # In-memory circular log buffer for the embedded live terminal app
@@ -51,16 +68,19 @@ def log_terminal(msg, level="info"):
     node_logs.append(entry)
     print(f"[{DEFAULT_NODE_NAME}] {entry}")
 
-log_terminal(f"Node initialized as '{DEFAULT_NODE_NAME}' on port {NODE_PORT}")
+log_terminal(f"Node initialized on port {NODE_PORT}")
+
+def format_address(address):
+    if not address or address == "COINBASE":
+        return "COINBASE"
+    if len(address) > 18:
+        return f"{address[:8]}...{address[-6:]}"
+    return address
 
 def get_or_create_alias(address):
-    if not address:
-        return "System"
-    if address not in ALIASES:
-        used = set(ALIASES.values())
-        avail = [n for n in NAMES_POOL if n not in used]
-        ALIASES[address] = avail[0] if avail else f"User_{address[-4:]}"
-    return ALIASES[address]
+    if not address or address == "COINBASE":
+        return "COINBASE"
+    return ALIASES.get(address, format_address(address))
 
 def sync_chain_with_peers():
     for peer in list(peers):
@@ -93,6 +113,7 @@ def sync_chain_with_peers():
                     candidate_chain.append(b)
 
                 if blockchain.replace_chain(candidate_chain):
+                    save_node_state()
                     log_terminal(f"Consensus: Adopted longer chain from {peer} (Length: {len(blockchain.chain)})", "consensus")
         except Exception:
             pass
@@ -132,11 +153,12 @@ def auto_miner_loop():
         if len(peers) > 0:
             sync_chain_with_peers()
 
-        if auto_mining_enabled and len(blockchain.pending_transactions) > 0:
-            miner_addr = active_node_wallet.public_key
+        miner_addr = active_node_wallet.public_key if active_node_wallet else keystore_address
+        if auto_mining_enabled and len(blockchain.pending_transactions) > 0 and miner_addr:
             try:
                 log_terminal(f"Auto-Miner: {len(blockchain.pending_transactions)} pending TX(s) found. Mining...", "mine")
                 new_block, stats = blockchain.mine_pending_transactions(miner_address=miner_addr)
+                save_node_state()
                 block_dict = {
                     "index": new_block.index,
                     "previous_hash": new_block.previous_hash,
@@ -212,12 +234,33 @@ class BlockchainHTTPHandler(BaseHTTPRequestHandler):
             self.send_response(204)
             self.end_headers()
 
-        elif parsed.path == "/wallet/current":
+        elif parsed.path == "/wallet/status":
+            status = "unlocked" if active_node_wallet is not None else ("locked" if os.path.exists(KEYSTORE_FILE) else "no_wallet")
+            addr = active_node_wallet.public_key if active_node_wallet else keystore_address
             self._send_json_response({
-                "alias": DEFAULT_NODE_NAME,
-                "public_key": active_node_wallet.public_key,
-                "private_key": list(active_node_wallet.private_key)
+                "status": status,
+                "address": addr,
+                "alias": DEFAULT_NODE_NAME
             })
+
+        elif parsed.path == "/wallet/current":
+            if active_node_wallet is None:
+                status = "locked" if os.path.exists(KEYSTORE_FILE) else "no_wallet"
+                self._send_json_response({
+                    "status": status,
+                    "alias": DEFAULT_NODE_NAME,
+                    "address": keystore_address,
+                    "public_key": keystore_address,
+                    "error": "Cüzdan kilitli veya henüz oluşturulmadı"
+                }, 200)
+            else:
+                self._send_json_response({
+                    "status": "unlocked",
+                    "alias": DEFAULT_NODE_NAME,
+                    "address": active_node_wallet.public_key,
+                    "public_key": active_node_wallet.public_key,
+                    "mnemonic": getattr(active_node_wallet, "mnemonic", "")
+                })
 
         elif parsed.path == "/chain":
             chain_data = [
@@ -259,7 +302,7 @@ class BlockchainHTTPHandler(BaseHTTPRequestHandler):
             self._send_json_response({"error": "Endpoint not found"}, 404)
 
     def do_POST(self):
-        global auto_mining_enabled, active_node_wallet
+        global auto_mining_enabled, active_node_wallet, keystore_address
         parsed = urlparse(self.path)
         content_length = int(self.headers.get("Content-Length", 0))
         post_body = self.rfile.read(content_length).decode("utf-8") if content_length > 0 else "{}"
@@ -268,16 +311,84 @@ class BlockchainHTTPHandler(BaseHTTPRequestHandler):
         except Exception:
             body = {}
 
-        if parsed.path == "/wallet/new":
-            w = Wallet()
+        if parsed.path == "/wallet/create":
+            password = body.get("password", "").strip()
+            if not password:
+                self._send_json_response({"error": "Lütfen cüzdanı şifrelemek için bir parola belirleyin."}, 400)
+                return
+            w = Wallet.generate_with_mnemonic()
+            w.save_keystore_file(KEYSTORE_FILE, password)
             active_node_wallet = w
-            alias = get_or_create_alias(w.public_key)
-            log_terminal(f"Generated new wallet: {alias}", "wallet")
+            keystore_address = w.public_key
+            ALIASES[w.public_key] = DEFAULT_NODE_NAME
+            log_terminal(f"Created new HD Wallet (BIP-39 12 words) for {DEFAULT_NODE_NAME}", "wallet")
             self._send_json_response({
-                "alias": alias,
+                "status": "unlocked",
+                "address": w.public_key,
                 "public_key": w.public_key,
-                "private_key": list(w.private_key)
-            })
+                "mnemonic": w.mnemonic,
+                "alias": DEFAULT_NODE_NAME
+            }, 201)
+
+        elif parsed.path == "/wallet/import":
+            mnemonic_str = body.get("mnemonic", "").strip()
+            password = body.get("password", "").strip()
+            if not mnemonic_str or not password:
+                self._send_json_response({"error": "12 kelimelik tohum ve parola zorunludur."}, 400)
+                return
+            try:
+                w = Wallet.from_mnemonic(mnemonic_str)
+                w.save_keystore_file(KEYSTORE_FILE, password)
+                active_node_wallet = w
+                keystore_address = w.public_key
+                ALIASES[w.public_key] = DEFAULT_NODE_NAME
+                log_terminal(f"Imported HD Wallet via seed phrase for {DEFAULT_NODE_NAME}", "wallet")
+                self._send_json_response({
+                    "status": "unlocked",
+                    "address": w.public_key,
+                    "public_key": w.public_key,
+                    "alias": DEFAULT_NODE_NAME
+                }, 200)
+            except Exception as e:
+                self._send_json_response({"error": f"İçe aktarma hatası: {e}"}, 400)
+
+        elif parsed.path == "/wallet/unlock":
+            password = body.get("password", "").strip()
+            if not os.path.exists(KEYSTORE_FILE):
+                self._send_json_response({"error": "Kayıtlı cüzdan dosyası bulunamadı."}, 404)
+                return
+            try:
+                w = Wallet.load_keystore_file(KEYSTORE_FILE, password)
+                active_node_wallet = w
+                keystore_address = w.public_key
+                ALIASES[w.public_key] = DEFAULT_NODE_NAME
+                log_terminal(f"Wallet unlocked successfully for {DEFAULT_NODE_NAME}", "wallet")
+                self._send_json_response({
+                    "status": "unlocked",
+                    "address": w.public_key,
+                    "public_key": w.public_key,
+                    "alias": DEFAULT_NODE_NAME,
+                    "mnemonic": getattr(w, "mnemonic", "")
+                }, 200)
+            except Exception as e:
+                log_terminal(f"Failed unlock attempt: {e}", "warn")
+                self._send_json_response({"error": str(e)}, 401)
+
+        elif parsed.path == "/wallet/lock":
+            active_node_wallet = None
+            log_terminal(f"Wallet locked by user for {DEFAULT_NODE_NAME}", "wallet")
+            self._send_json_response({"status": "locked"})
+
+        elif parsed.path == "/wallet/reset":
+            active_node_wallet = None
+            keystore_address = None
+            if os.path.exists(KEYSTORE_FILE):
+                try:
+                    os.remove(KEYSTORE_FILE)
+                except Exception:
+                    pass
+            log_terminal("Wallet keystore reset. Ready for new wallet.", "wallet")
+            self._send_json_response({"status": "no_wallet"})
 
         elif parsed.path == "/miner/toggle":
             auto_mining_enabled = not auto_mining_enabled
@@ -285,23 +396,29 @@ class BlockchainHTTPHandler(BaseHTTPRequestHandler):
             self._send_json_response({"auto_mining": auto_mining_enabled})
 
         elif parsed.path == "/transactions/sign_and_send":
+            if active_node_wallet is None:
+                self._send_json_response({"error": "Cüzdan kilitli! Transfer göndermek için lütfen önce parolanızla cüzdanınızı açın."}, 401)
+                return
             try:
-                w = Wallet()
-                w.private_key = tuple(body["private_key"])
-                w.public_key = body["sender"]
+                recipient = body.get("recipient", "").strip()
+                for pub, name in ALIASES.items():
+                    if name.lower() == recipient.lower():
+                        recipient = pub
+                        break
 
-                tx = Transaction(body["sender"], body["recipient"], float(body["amount"]))
-                tx.sign_transaction(w)
+                amount = float(body.get("amount", 0))
+                tx = Transaction(active_node_wallet.public_key, recipient, amount)
+                tx.sign_transaction(active_node_wallet)
                 blockchain.add_transaction(tx)
 
-                sender_name = get_or_create_alias(body["sender"])
-                recipient_name = get_or_create_alias(body["recipient"])
-                log_terminal(f"Signed TX: {sender_name} ➜ {recipient_name} ({body['amount']} Coin)", "tx")
+                sender_name = get_or_create_alias(active_node_wallet.public_key)
+                recipient_name = get_or_create_alias(recipient)
+                log_terminal(f"Signed TX: {sender_name} ➜ {recipient_name} ({amount} Coin)", "tx")
 
                 tx_payload = tx.to_dict()
                 threading.Thread(target=broadcast_transaction_to_peers, args=(tx_payload,)).start()
 
-                self._send_json_response({"message": "Transaction signed and broadcasted to network"}, 201)
+                self._send_json_response({"message": "Transaction signed and broadcasted to network", "tx": tx_payload}, 201)
             except Exception as e:
                 log_terminal(f"Failed to sign/send TX: {e}", "error")
                 self._send_json_response({"error": str(e)}, 400)
@@ -340,10 +457,14 @@ class BlockchainHTTPHandler(BaseHTTPRequestHandler):
             self._send_json_response({"message": "Transaction added to mempool successfully"}, 201)
 
         elif parsed.path == "/mine":
-            miner_address = body.get("miner_address") or active_node_wallet.public_key
+            miner_address = body.get("miner_address") or (active_node_wallet.public_key if active_node_wallet else keystore_address)
+            if not miner_address:
+                self._send_json_response({"error": "Madencilik ödülü için geçerli cüzdan bulunamadı. Lütfen önce cüzdan oluşturun veya kilidini açın."}, 400)
+                return
             miner_name = get_or_create_alias(miner_address)
             log_terminal(f"Manual Mine triggered for {miner_name}...", "mine")
             new_block, stats = blockchain.mine_pending_transactions(miner_address=miner_address)
+            save_node_state()
 
             block_dict = {
                 "index": new_block.index,
@@ -389,6 +510,7 @@ class BlockchainHTTPHandler(BaseHTTPRequestHandler):
 
             accepted = blockchain.add_received_block(candidate_block)
             if accepted:
+                save_node_state()
                 log_terminal(f"Accepted winning Block #{candidate_block.index} from peer! Appended to chain.", "p2p")
                 self._send_json_response({"message": "Block accepted and appended to local chain"}, 200)
             else:

@@ -1,26 +1,32 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, screen } = require('electron');
 const path = require('path');
 
-// Extract target node port from arguments: e.g. --port=5000 or --port=5001
-let targetPort = '5000';
-for (const arg of process.argv) {
-  if (arg.startsWith('--port=')) {
-    targetPort = arg.split('=')[1];
-  } else if (arg.startsWith('--nodePort=')) {
-    targetPort = arg.split('=')[1];
-  }
-}
-
-let mainWindow;
+let mainWindow = null;
 
 function createWindow() {
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width, height } = primaryDisplay.workAreaSize;
+
+  let targetPort = '5000';
+  for (const arg of process.argv) {
+    if (arg.startsWith('--port=')) {
+      targetPort = arg.split('=')[1];
+    } else if (arg.startsWith('--nodePort=')) {
+      targetPort = arg.split('=')[1];
+    }
+  }
+
+  const winWidth = Math.min(1180, width - 40);
+  const winHeight = Math.min(860, height - 40);
+
   mainWindow = new BrowserWindow({
-    width: 1250,
-    height: 880,
-    minWidth: 950,
-    minHeight: 650,
-    title: `CtrlC-Coin Node Client (: ${targetPort})`,
-    backgroundColor: '#0c0f17',
+    width: winWidth,
+    height: winHeight,
+    minWidth: 800,
+    minHeight: 600,
+    title: `CtrlC-Coin Desktop (: ${targetPort})`,
+    backgroundColor: '#08090c',
+    icon: path.join(__dirname, 'public', 'logo.png'),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true
@@ -41,11 +47,5 @@ app.whenReady().then(createWindow);
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
-  }
-});
-
-app.on('activate', () => {
-  if (mainWindow === null) {
-    createWindow();
   }
 });
