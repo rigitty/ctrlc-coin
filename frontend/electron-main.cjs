@@ -8,7 +8,7 @@ let spawnedNodeProcess = null;
 
 function checkIsNodeRunning(port) {
   return new Promise((resolve) => {
-    const req = http.get(`http://127.0.0.1:${port}/blocks`, (res) => {
+    const req = http.get(`http://127.0.0.1:${port}/wallet/status`, (res) => {
       resolve(true);
     });
     req.on('error', () => {

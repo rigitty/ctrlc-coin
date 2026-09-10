@@ -14,7 +14,8 @@ class Blockchain:
         self.halving_interval = Config.HALVING_INTERVAL
 
         self.pending_transactions = []
-        self.lock = threading.Lock()
+        # RLock: reentrant, so replace_chain() -> add_transaction() can't deadlock
+        self.lock = threading.RLock()
         self.chain = [self.create_genesis_block()]
 
     @property
@@ -47,11 +48,15 @@ class Blockchain:
         expected_time = self.adjustment_interval * self.target_time_per_block
 
         allow_decrease = getattr(Config, "ALLOW_DIFFICULTY_DECREASE", False)
+        allow_increase = getattr(Config, "ALLOW_DIFFICULTY_INCREASE", True)
         min_diff = getattr(Config, "MIN_DIFFICULTY", 6)
 
         if actual_time < (expected_time / 2):
-            self.difficulty += 1
-            print(f"\n[Difficulty Adjustment] Blocks mined too fast ({actual_time:.2f}s < {expected_time}s). Difficulty increased to {self.difficulty}!\n")
+            if allow_increase:
+                self.difficulty += 1
+                print(f"\n[Difficulty Adjustment] Blocks mined too fast ({actual_time:.2f}s < {expected_time}s). Difficulty increased to {self.difficulty}!\n")
+            else:
+                print(f"\n[Difficulty Adjustment] Blocks mined fast ({actual_time:.2f}s), but difficulty increase is disabled. Kept at {self.difficulty}.\n")
         elif actual_time > (expected_time * 2):
             if allow_decrease and self.difficulty > min_diff:
                 self.difficulty = max(min_diff, self.difficulty - 1)
@@ -74,8 +79,13 @@ class Blockchain:
                 raise ValueError("Transaction amount must be greater than 0!")
 
             sender_balance = self.get_balance_of_address(transaction.sender)
-            if sender_balance < transaction.amount:
-                raise ValueError("Insufficient balance!")
+            pending_spent = sum(
+                (tx.amount if hasattr(tx, "amount") else tx.get("amount", 0))
+                for tx in self.pending_transactions
+                if (tx.sender if hasattr(tx, "sender") else tx.get("sender")) == transaction.sender
+            )
+            if sender_balance - pending_spent < transaction.amount:
+                raise ValueError("Insufficient balance (taking pending transactions into account)!")
 
             tx_hash = transaction.calculate_hash()
             for p_tx in self.pending_transactions:
@@ -146,7 +156,13 @@ class Blockchain:
                 progress_callback(new_block.index, new_block.nonce, new_block.hash, hr, target_difficulty, True)
 
             self.chain.append(new_block)
-            self.pending_transactions = []
+            # Only drop transactions actually sealed into this block.
+            # Txs that arrived while we were hashing stay in the mempool.
+            confirmed_hashes = {tx.calculate_hash() for tx in block_txs}
+            self.pending_transactions = [
+                tx for tx in self.pending_transactions
+                if tx.calculate_hash() not in confirmed_hashes
+            ]
 
             mining_stats = {
                 "block_index": new_block.index,
@@ -183,8 +199,14 @@ class Blockchain:
                 return "invalid"
 
             # Strict validation: Exactly 1 coinbase reward transaction allowed per block
-            coinbase_count = sum(1 for tx in block.transactions if (tx.sender is None if hasattr(tx, "sender") else tx.get("sender") is None))
-            if coinbase_count > 1:
+            coinbase_txs = [tx for tx in block.transactions if (tx.sender is None if hasattr(tx, "sender") else tx.get("sender") is None)]
+            if len(coinbase_txs) != 1:
+                return "invalid"
+
+            halvings = block.index // self.halving_interval
+            max_allowed_reward = round(self.initial_reward / (2 ** halvings), 4)
+            cb_amount = coinbase_txs[0].amount if hasattr(coinbase_txs[0], "amount") else coinbase_txs[0].get("amount", 0)
+            if cb_amount > max_allowed_reward + 0.0001:
                 return "invalid"
 
             for tx in block.transactions:
@@ -192,12 +214,13 @@ class Blockchain:
                     return "invalid"
 
             self.chain.append(block)
-            min_diff = getattr(Config, "MIN_DIFFICULTY", 5)
-            allow_decrease = getattr(Config, "ALLOW_DIFFICULTY_DECREASE", False)
-            self.difficulty = block.difficulty if allow_decrease else max(min_diff, block.difficulty)
+            min_diff = getattr(Config, "MIN_DIFFICULTY", 6)
+            self.difficulty = max(min_diff, block.difficulty)
 
             confirmed_hashes = {
-                (tx if hasattr(tx, "calculate_hash") else Transaction(tx["sender"], tx["recipient"], tx["amount"])).calculate_hash()
+                (tx if hasattr(tx, "calculate_hash") else Transaction(
+                    tx["sender"], tx["recipient"], tx["amount"], timestamp=tx.get("timestamp")
+                )).calculate_hash()
                 for tx in block.transactions
             }
             self.pending_transactions = [
@@ -238,8 +261,14 @@ class Blockchain:
             if not current_block.hash.startswith(target):
                 return False
 
-            coinbase_count = sum(1 for tx in current_block.transactions if (tx.sender is None if hasattr(tx, "sender") else tx.get("sender") is None))
-            if coinbase_count > 1:
+            coinbase_txs = [tx for tx in current_block.transactions if (tx.sender is None if hasattr(tx, "sender") else tx.get("sender") is None)]
+            if len(coinbase_txs) != 1:
+                return False
+
+            halvings = current_block.index // self.halving_interval
+            max_allowed_reward = round(self.initial_reward / (2 ** halvings), 4)
+            cb_amount = coinbase_txs[0].amount if hasattr(coinbase_txs[0], "amount") else coinbase_txs[0].get("amount", 0)
+            if cb_amount > max_allowed_reward + 0.0001:
                 return False
 
             for tx in current_block.transactions:
@@ -265,7 +294,8 @@ class Blockchain:
                             recovered_txs.append(tx_obj)
 
                 self.chain = new_chain
-                self.difficulty = self.chain[-1].difficulty
+                min_diff = getattr(Config, "MIN_DIFFICULTY", 6)
+                self.difficulty = max(min_diff, self.chain[-1].difficulty)
 
                 for r_tx in recovered_txs:
                     try:
@@ -305,7 +335,7 @@ class Blockchain:
         for b_data in chain_data:
             tx_objs = []
             for tx_item in b_data["transactions"]:
-                t = Transaction(tx_item["sender"], tx_item["recipient"], tx_item["amount"])
+                t = Transaction(tx_item["sender"], tx_item["recipient"], tx_item["amount"], timestamp=tx_item.get("timestamp"))
                 t.signature = tx_item.get("signature")
                 tx_objs.append(t)
 
@@ -321,9 +351,8 @@ class Blockchain:
             loaded_chain.append(block)
 
         min_diff = getattr(Config, "MIN_DIFFICULTY", 5)
-        allow_decrease = getattr(Config, "ALLOW_DIFFICULTY_DECREASE", False)
         loaded_diff = loaded_chain[-1].difficulty
-        effective_diff = loaded_diff if allow_decrease else max(min_diff, loaded_diff)
+        effective_diff = max(min_diff, loaded_diff)
 
         blockchain = cls(initial_difficulty=effective_diff)
         blockchain.difficulty = effective_diff

@@ -81,6 +81,10 @@ const I18N = {
     logs_count: 'Logs',
     tab_chain: 'Blockchain',
     tab_mempool: 'Mempool',
+    tab_current_block: 'Current Block',
+    current_block_tip: 'Transactions being sealed into the block that is currently being mined.',
+    current_block_empty: 'Miner standing by. Start the Auto-Miner or trigger a manual mine to preview the block\'s transactions.',
+    current_block_no_tx: 'No transactions in the block being mined. It will contain only the mining reward.',
     genesis_block: 'Genesis Block #0',
     block_prefix: 'Block #',
     sealed_by: 'Miner:',
@@ -102,7 +106,35 @@ const I18N = {
     footer_target: 'Target: 10.0s',
     footer_supply: 'Circulating Supply:',
     footer_halving: 'Next Halving: Block #{n}',
-    footer_tip: 'Chain Tip:'
+    footer_tip: 'Chain Tip:',
+
+    // System Messages & Error Localization
+    err_incorrect_pwd: 'Incorrect password! Private key could not be decrypted.',
+    err_pwd_required: 'Please enter your password!',
+    err_set_pwd_required: 'Please set a password to encrypt wallet.',
+    err_seed_and_pwd_required: '12-word seed phrase and password are required.',
+    err_keystore_not_found: 'Saved wallet keystore file not found.',
+    err_wallet_locked_send: 'Wallet is locked! Please unlock with your password to send transactions.',
+    err_no_miner_wallet: 'No valid wallet found for mining reward. Please unlock or create a wallet first.',
+    err_invalid_tx_sig: 'Invalid transaction signature!',
+    err_amount_positive: 'Transaction amount must be greater than 0!',
+    err_insufficient_balance: 'Insufficient balance!',
+    err_insufficient_balance_mempool: 'Insufficient balance (taking pending transactions into account)!',
+    err_cannot_sign_others: 'Cannot sign transactions for other wallets!',
+    err_conn_failed: 'Connection error. Python node is unreachable.',
+    err_import_failed: 'Import failed! Please verify your seed phrase.',
+    err_create_failed: 'Failed to create wallet.',
+    err_tx_rejected: 'Transfer rejected by node.',
+    err_mining_failed: 'Mining failed.',
+    msg_wallet_created: '12-Word Seed Generated Successfully!',
+    msg_wallet_imported: 'Wallet Imported Successfully!',
+    msg_wallet_unlocked: 'Wallet Unlocked!',
+    msg_wallet_locked: 'Wallet Locked.',
+    msg_sync_completed: 'Consensus sync completed.',
+    msg_block_mined: 'Block #{index} Mined! Nonce: {nonce}',
+    msg_race_lost: 'Race lost: Peer solved block first.',
+    btn_cancel: 'Cancel',
+    btn_yes_reset: 'Yes, Reset'
   },
   tr: {
     online: 'ÇEVRİMİÇİ',
@@ -184,6 +216,10 @@ const I18N = {
     logs_count: 'Kayıt',
     tab_chain: 'Blokzincir',
     tab_mempool: 'Mempool',
+    tab_current_block: 'Mevcut Blok',
+    current_block_tip: 'Şu an kazılan blokta mühürlenecek işlemler.',
+    current_block_empty: 'Madenci beklemede. Bloğun işlemlerini önizlemek için Oto-Madenciyi açın veya manuel kazım başlatın.',
+    current_block_no_tx: 'Kazılan blokta işlem yok. Blok yalnızca madencilik ödülünü içerecek.',
     genesis_block: 'Genesis Block #0',
     block_prefix: 'Blok #',
     sealed_by: 'Mühürleyen:',
@@ -205,8 +241,87 @@ const I18N = {
     footer_target: 'Hedef: 10.0sn',
     footer_supply: 'Dolaşımdaki Arz:',
     footer_halving: 'Sonraki Yarılanma: Blok #{n}',
-    footer_tip: 'Son Blok:'
+    footer_tip: 'Son Blok:',
+
+    // System Messages & Error Localization
+    err_incorrect_pwd: 'Hatalı parola! Özel anahtar çözülemedi.',
+    err_pwd_required: 'Lütfen parolanızı girin!',
+    err_set_pwd_required: 'Lütfen cüzdanı şifrelemek için bir parola belirleyin.',
+    err_seed_and_pwd_required: '12 kelimelik tohum ve parola zorunludur.',
+    err_keystore_not_found: 'Kayıtlı cüzdan dosyası bulunamadı.',
+    err_wallet_locked_send: 'Cüzdan kilitli! Transfer göndermek için lütfen önce parolanızla cüzdanınızı açın.',
+    err_no_miner_wallet: 'Madencilik ödülü için geçerli cüzdan bulunamadı. Lütfen önce cüzdan oluşturun veya kilidini açın.',
+    err_invalid_tx_sig: 'Geçersiz transfer imzası!',
+    err_amount_positive: 'Transfer miktarı 0\'dan büyük olmalıdır!',
+    err_insufficient_balance: 'Yetersiz bakiye!',
+    err_insufficient_balance_mempool: 'Yetersiz bakiye (bekleyen işlemler dahil)!',
+    err_cannot_sign_others: 'Başka cüzdanlar adına transfer imzalanamaz!',
+    err_conn_failed: 'Bağlantı hatası. Python düğümüne erişilemiyor.',
+    err_import_failed: 'İçe aktarma başarısız! Tohum kelimelerini kontrol edin.',
+    err_create_failed: 'Cüzdan oluşturulamadı.',
+    err_tx_rejected: 'Transfer düğüm tarafından reddedildi.',
+    err_mining_failed: 'Madencilik başarısız oldu.',
+    msg_wallet_created: '12 Kelimelik Tohum Başarıyla Üretildi!',
+    msg_wallet_imported: 'Cüzdan Başarıyla İçe Aktarıldı!',
+    msg_wallet_unlocked: 'Cüzdan Kilidi Açıldı!',
+    msg_wallet_locked: 'Cüzdan Kilitlendi.',
+    msg_sync_completed: 'Konsensüs senkronizasyonu tamamlandı.',
+    msg_block_mined: 'Blok #{index} Kazıldı! Nonce: {nonce}',
+    msg_race_lost: 'Yarış kaybedildi: Eş bloğu önce çözdü.',
+    btn_cancel: 'İptal',
+    btn_yes_reset: 'Evet, Sıfırla'
   }
+}
+
+function translateError(raw, lang) {
+  if (!raw) return ''
+  const str = String(raw)
+  const l = lang === 'tr' ? 'tr' : 'en'
+  const dict = I18N[l] || I18N.en
+
+  if (str.includes('Hatalı Parola') || str.includes('Incorrect password') || str.includes('Özel anahtar çözülemedi') || str.includes('could not be decrypted')) {
+    return dict.err_incorrect_pwd
+  }
+  if (str.includes('parola belirleyin') || str.includes('set a password')) {
+    return dict.err_set_pwd_required
+  }
+  if (str.includes('12 kelimelik tohum ve parola zorunludur') || str.includes('seed phrase and password are required')) {
+    return dict.err_seed_and_pwd_required
+  }
+  if (str.includes('Kayıtlı cüzdan dosyası bulunamadı') || str.includes('keystore file not found') || str.includes('bulunamadı')) {
+    return dict.err_keystore_not_found
+  }
+  if (str.includes('Cüzdan kilitli! Transfer') || str.includes('Wallet is locked!')) {
+    return dict.err_wallet_locked_send
+  }
+  if (str.includes('Madencilik ödülü için geçerli cüzdan bulunamadı') || str.includes('No valid wallet found for mining reward')) {
+    return dict.err_no_miner_wallet
+  }
+  if (str.includes('Invalid transaction signature') || str.includes('Geçersiz işlem imzası')) {
+    return dict.err_invalid_tx_sig
+  }
+  if (str.includes('greater than 0') || str.includes('0\'dan büyük')) {
+    return dict.err_amount_positive
+  }
+  if (str.includes('taking pending transactions into account') || str.includes('bekleyen işlemler dahil')) {
+    return dict.err_insufficient_balance_mempool
+  }
+  if (str.includes('Insufficient balance') || str.includes('Yetersiz bakiye')) {
+    return dict.err_insufficient_balance
+  }
+  if (str.includes('Cannot sign transactions for other wallets') || str.includes('Başka cüzdanlar adına')) {
+    return dict.err_cannot_sign_others
+  }
+  if (str.includes('Failed to fetch') || str.includes('NetworkError') || str.includes('Network error') || str.includes('Connection error') || str.includes('Bağlantı hatası')) {
+    return dict.err_conn_failed
+  }
+  if (str.includes('peer solved block first') || str.includes('Eş bloğu daha önce çözdü') || str.includes('Yarış kaybedildi')) {
+    return dict.msg_race_lost
+  }
+  if (str.includes('Mining failed') || str.includes('Madencilik başarısız')) {
+    return dict.err_mining_failed
+  }
+  return str
 }
 
 export default function App() {
@@ -238,9 +353,13 @@ export default function App() {
   const [importMnemonic, setImportMnemonic] = useState('')
   const [importPassword, setImportPassword] = useState('')
   const [unlockPassword, setUnlockPassword] = useState('')
+  const [unlockError, setUnlockError] = useState('')
+  const [authError, setAuthError] = useState('')
   const [showMnemonicModal, setShowMnemonicModal] = useState(false)
   const [showBackupMnemonic, setShowBackupMnemonic] = useState(false)
+  const [showResetModal, setShowResetModal] = useState(false)
   const [authTab, setAuthTab] = useState('create')
+  const unlockInputRef = useRef(null)
 
   // Forms
   const [recipient, setRecipient] = useState('')
@@ -274,7 +393,8 @@ export default function App() {
     last_hash: '',
     hash_rate: 0,
     recent_nonces: [],
-    logs: []
+    logs: [],
+    block_transactions: []
   })
 
   // Polling loop for general status
@@ -393,11 +513,13 @@ export default function App() {
   // Wallet Actions
   const handleCreateWallet = async (e) => {
     e.preventDefault()
+    setAuthError('')
     if (!createPassword || createPassword.length < 4) {
-      alert(t.pwd_min_length_err)
+      setAuthError(t.pwd_min_length_err)
       return
     }
 
+    setIsSubmitting(true)
     try {
       const res = await fetch(`http://127.0.0.1:${currentPort}/wallet/create`, {
         method: 'POST',
@@ -409,27 +531,32 @@ export default function App() {
         setGeneratedMnemonic(data.mnemonic)
         setShowMnemonicModal(true)
         setCreatePassword('')
-        notify(lang === 'en' ? '12-Word Seed Generated Successfully!' : '12 Kelimelik Tohum Başarıyla Üretildi!')
+        setAuthError('')
+        notify(t.msg_wallet_created)
       } else {
-        alert(data.error || 'Failed to create wallet')
+        setAuthError(translateError(data.error, lang) || t.err_create_failed)
       }
     } catch (err) {
-      alert(`Error: ${err.message}`)
+      setAuthError(translateError(err.message, lang))
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
   const handleImportWallet = async (e) => {
     e.preventDefault()
+    setAuthError('')
     const words = importMnemonic.trim().split(/\s+/)
     if (words.length !== 12) {
-      alert(t.seed_12words_err)
+      setAuthError(t.seed_12words_err)
       return
     }
     if (!importPassword || importPassword.length < 4) {
-      alert(t.pwd_min_length_err)
+      setAuthError(t.pwd_min_length_err)
       return
     }
 
+    setIsSubmitting(true)
     try {
       const res = await fetch(`http://127.0.0.1:${currentPort}/wallet/import`, {
         method: 'POST',
@@ -440,17 +567,29 @@ export default function App() {
       if (res.ok) {
         setImportMnemonic('')
         setImportPassword('')
-        notify(lang === 'en' ? 'Wallet Imported Successfully!' : 'Cüzdan Başarıyla İçe Aktarıldı!')
+        setAuthError('')
+        setWalletStatus('unlocked')
+        notify(t.msg_wallet_imported)
       } else {
-        alert(data.error || 'Import failed')
+        setAuthError(translateError(data.error, lang) || t.err_import_failed)
       }
     } catch (err) {
-      alert(`Error: ${err.message}`)
+      setAuthError(translateError(err.message, lang))
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
   const handleUnlockWallet = async (e) => {
-    e.preventDefault()
+    if (e) e.preventDefault()
+    if (!unlockPassword) {
+      setUnlockError(t.err_pwd_required)
+      unlockInputRef.current?.focus()
+      return
+    }
+
+    setUnlockError('')
+    setIsSubmitting(true)
     try {
       const res = await fetch(`http://127.0.0.1:${currentPort}/wallet/unlock`, {
         method: 'POST',
@@ -460,34 +599,63 @@ export default function App() {
       const data = await res.json()
       if (res.ok) {
         setUnlockPassword('')
-        notify(lang === 'en' ? 'Wallet Unlocked!' : 'Cüzdan Kilidi Açıldı!')
+        setUnlockError('')
+        setWalletStatus('unlocked')
+        notify(t.msg_wallet_unlocked)
       } else {
-        alert(data.error || (lang === 'en' ? 'Incorrect password!' : 'Hatalı parola!'))
+        const errMsg = translateError(data.error, lang) || t.err_incorrect_pwd
+        setUnlockError(errMsg)
+        setTimeout(() => {
+          if (unlockInputRef.current) {
+            unlockInputRef.current.focus()
+            unlockInputRef.current.select()
+          }
+        }, 50)
       }
     } catch (err) {
-      alert(`Error: ${err.message}`)
+      setUnlockError(translateError(err.message, lang))
+      setTimeout(() => {
+        if (unlockInputRef.current) {
+          unlockInputRef.current.focus()
+          unlockInputRef.current.select()
+        }
+      }, 50)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
   const handleLockWallet = async () => {
     try {
       await fetch(`http://127.0.0.1:${currentPort}/wallet/lock`, { method: 'POST' })
-      notify(lang === 'en' ? 'Wallet Locked.' : 'Cüzdan Kilitlendi.')
+      setWalletStatus('locked')
+      setUnlockError('')
+      notify(t.msg_wallet_locked)
+      setTimeout(() => {
+        if (unlockInputRef.current) {
+          unlockInputRef.current.focus()
+        }
+      }, 80)
     } catch (err) {
-      alert(`Error: ${err.message}`)
+      notify(translateError(err.message, lang))
     }
   }
 
-  const handleResetWallet = async () => {
-    if (window.confirm(t.confirm_reset)) {
-      try {
-        await fetch(`http://127.0.0.1:${currentPort}/wallet/reset`, { method: 'POST' })
-        setWalletStatus('no_wallet')
-        setWalletData(null)
-        notify(t.wallet_reset_notif)
-      } catch (err) {
-        alert(`Error: ${err.message}`)
-      }
+  const handleResetWallet = () => {
+    setShowResetModal(true)
+  }
+
+  const confirmResetWallet = async () => {
+    setShowResetModal(false)
+    try {
+      await fetch(`http://127.0.0.1:${currentPort}/wallet/reset`, { method: 'POST' })
+      setWalletStatus('no_wallet')
+      setWalletData(null)
+      setUnlockError('')
+      setAuthError('')
+      notify(t.wallet_reset_notif)
+    } catch (err) {
+      notify(translateError(err.message, lang))
     }
   }
 
@@ -495,7 +663,7 @@ export default function App() {
   const handleSendTx = async (e) => {
     e.preventDefault()
     if (!recipient || !amount || Number(amount) <= 0) {
-      alert(t.invalid_transfer_err)
+      notify(t.invalid_transfer_err)
       return
     }
 
@@ -512,10 +680,10 @@ export default function App() {
         setRecipient('')
         setAmount('')
       } else {
-        alert(data.error || 'Transfer rejected')
+        notify(translateError(data.error, lang) || t.err_tx_rejected)
       }
     } catch (err) {
-      alert(`Error: ${err.message}`)
+      notify(translateError(err.message, lang))
     } finally {
       setIsSubmitting(false)
     }
@@ -527,15 +695,15 @@ export default function App() {
       const data = await res.json()
       if (res.ok) {
         if (data.block) {
-          notify(lang === 'en' ? `Block #${data.block.index} Mined! Nonce: ${data.block.nonce}` : `Blok #${data.block.index} Kazıldı! Nonce: ${data.block.nonce}`)
+          notify(t.msg_block_mined.replace('{index}', data.block.index).replace('{nonce}', data.block.nonce))
         } else {
-          notify(lang === 'en' ? 'Race lost: Peer solved block first.' : 'Yarış kaybedildi: Eş bloğu önce çözdü.')
+          notify(t.msg_race_lost)
         }
       } else {
-        alert(data.error || (lang === 'en' ? 'Mining failed' : 'Madencilik başarısız'))
+        notify(translateError(data.error, lang) || t.err_mining_failed)
       }
     } catch (err) {
-      alert(`Error: ${err.message}`)
+      notify(translateError(err.message, lang))
     }
   }
 
@@ -548,7 +716,7 @@ export default function App() {
         notify(data.auto_mining ? t.auto_mine_active_notif : t.auto_mine_stopped_notif)
       }
     } catch (err) {
-      alert(`Error: ${err.message}`)
+      notify(translateError(err.message, lang))
     }
   }
 
@@ -556,9 +724,9 @@ export default function App() {
     try {
       const res = await fetch(`http://127.0.0.1:${currentPort}/nodes/resolve`)
       const data = await res.json()
-      notify(data.message)
+      notify(t.msg_sync_completed)
     } catch (err) {
-      alert(`Error: ${err.message}`)
+      notify(translateError(err.message, lang))
     }
   }
 
@@ -576,7 +744,7 @@ export default function App() {
     }
   }
 
-  const nextHalvingBlock = chainData.length > 0 ? (Math.floor(chainData.length / 5) + 1) * 5 : 5
+  const nextHalvingBlock = chainData.length > 0 ? Math.ceil(chainData.length / 5) * 5 : 5
   const latestBlock = chainData.length > 0 ? chainData[chainData.length - 1] : null
 
   return (
@@ -916,6 +1084,22 @@ export default function App() {
               </button>
             </div>
 
+            {authError && (
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.15)',
+                border: '1px solid var(--accent-rose)',
+                color: '#f87171',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                fontSize: '12px',
+                marginBottom: '14px',
+                fontWeight: '500',
+                textAlign: 'center'
+              }}>
+                {authError}
+              </div>
+            )}
+
             {authTab === 'create' ? (
               <form onSubmit={handleCreateWallet} style={{ display: 'flex', flexDirection: 'column', gap: '14px', textAlign: 'left' }}>
                 <div>
@@ -926,7 +1110,10 @@ export default function App() {
                     type="password"
                     placeholder={t.pwd_placeholder}
                     value={createPassword}
-                    onChange={e => setCreatePassword(e.target.value)}
+                    onChange={e => {
+                      setCreatePassword(e.target.value)
+                      if (authError) setAuthError('')
+                    }}
                     style={{
                       width: '100%',
                       background: 'var(--bg-main)',
@@ -939,6 +1126,7 @@ export default function App() {
                 </div>
                 <button
                   type="submit"
+                  disabled={isSubmitting}
                   style={{
                     background: 'var(--accent-blue)',
                     color: '#fff',
@@ -950,7 +1138,7 @@ export default function App() {
                     marginTop: '6px'
                   }}
                 >
-                  {t.btn_create_wallet}
+                  {isSubmitting ? '...' : t.btn_create_wallet}
                 </button>
               </form>
             ) : (
@@ -963,7 +1151,10 @@ export default function App() {
                     rows={3}
                     placeholder={t.seed_phrase_placeholder}
                     value={importMnemonic}
-                    onChange={e => setImportMnemonic(e.target.value)}
+                    onChange={e => {
+                      setImportMnemonic(e.target.value)
+                      if (authError) setAuthError('')
+                    }}
                     style={{
                       width: '100%',
                       background: 'var(--bg-main)',
@@ -983,7 +1174,10 @@ export default function App() {
                     type="password"
                     placeholder={t.pwd_placeholder}
                     value={importPassword}
-                    onChange={e => setImportPassword(e.target.value)}
+                    onChange={e => {
+                      setImportPassword(e.target.value)
+                      if (authError) setAuthError('')
+                    }}
                     style={{
                       width: '100%',
                       background: 'var(--bg-main)',
@@ -996,6 +1190,7 @@ export default function App() {
                 </div>
                 <button
                   type="submit"
+                  disabled={isSubmitting}
                   style={{
                     background: 'var(--accent-blue)',
                     color: '#fff',
@@ -1007,7 +1202,7 @@ export default function App() {
                     marginTop: '6px'
                   }}
                 >
-                  {t.btn_import_wallet}
+                  {isSubmitting ? '...' : t.btn_import_wallet}
                 </button>
               </form>
             )}
@@ -1044,25 +1239,49 @@ export default function App() {
               {t.wallet_locked_desc}
             </p>
 
+            {unlockError && (
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.15)',
+                border: '1px solid var(--accent-rose)',
+                color: '#f87171',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                fontSize: '12px',
+                marginBottom: '14px',
+                fontWeight: '500',
+                textAlign: 'center',
+                animation: 'shake 0.3s ease-in-out'
+              }}>
+                {unlockError}
+              </div>
+            )}
+
             <form onSubmit={handleUnlockWallet} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <input
+                ref={unlockInputRef}
                 type="password"
                 placeholder={t.unlock_pwd_placeholder}
                 value={unlockPassword}
-                onChange={e => setUnlockPassword(e.target.value)}
+                onChange={e => {
+                  setUnlockPassword(e.target.value)
+                  if (unlockError) setUnlockError('')
+                }}
+                disabled={isSubmitting}
                 autoFocus
                 style={{
                   width: '100%',
                   background: 'var(--bg-main)',
-                  border: '1px solid var(--border)',
+                  border: unlockError ? '1px solid var(--accent-rose)' : '1px solid var(--border)',
                   borderRadius: '6px',
                   padding: '11px',
                   fontSize: '13px',
-                  textAlign: 'center'
+                  textAlign: 'center',
+                  outline: 'none'
                 }}
               />
               <button
                 type="submit"
+                disabled={isSubmitting}
                 style={{
                   background: 'var(--accent-blue)',
                   color: '#fff',
@@ -1073,7 +1292,7 @@ export default function App() {
                   fontSize: '13px'
                 }}
               >
-                {t.btn_unlock_wallet}
+                {isSubmitting ? '...' : t.btn_unlock_wallet}
               </button>
               <button
                 type="button"
@@ -1666,6 +1885,20 @@ export default function App() {
                   >
                     {t.tab_mempool} ({pendingTxs.length})
                   </button>
+                  <button
+                    onClick={() => setActiveTab('current_block')}
+                    style={{
+                      background: activeTab === 'current_block' ? 'rgba(245,158,11,0.15)' : 'transparent',
+                      border: activeTab === 'current_block' ? '1px solid #f59e0b' : 'none',
+                      color: activeTab === 'current_block' ? '#fbbf24' : 'var(--text-muted)',
+                      padding: '4px 10px',
+                      borderRadius: '5px',
+                      fontSize: '11px',
+                      fontWeight: '700'
+                    }}
+                  >
+                    {t.tab_current_block} ({miningTelemetry.block_transactions.length})
+                  </button>
                 </div>
 
                 <div style={{ flex: 1, minHeight: '380px', maxHeight: '425px', overflowY: 'auto', paddingRight: '4px' }}>
@@ -1725,7 +1958,7 @@ export default function App() {
                         </div>
                       ))}
                     </div>
-                  ) : (
+                    ) : activeTab === 'mempool' ? (
                     <div>
                       {pendingTxs.length === 0 ? (
                         <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--text-muted)', fontSize: '11px' }}>
@@ -1742,10 +1975,54 @@ export default function App() {
                         ))
                       )}
                     </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        background: 'rgba(245,158,11,0.08)',
+                        border: '1px solid rgba(245,158,11,0.25)',
+                        borderRadius: '5px',
+                        padding: '6px 9px',
+                        fontSize: '10.5px',
+                        color: 'var(--text-muted)',
+                        lineHeight: '1.4'
+                      }}>
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: miningTelemetry.is_mining ? '#f59e0b' : 'var(--text-dim)', boxShadow: miningTelemetry.is_mining ? '0 0 6px #f59e0b' : 'none', display: 'inline-block', flexShrink: 0 }} />
+                        <span>
+                          {t.current_block_tip}
+                          {miningTelemetry.is_mining && miningTelemetry.block_index > 0 ? ` Block #{miningTelemetry.block_index}.` : ''}
+                        </span>
+                      </div>
+                      {miningTelemetry.block_transactions.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--text-muted)', fontSize: '11px' }}>
+                          {miningTelemetry.is_mining ? t.current_block_no_tx : t.current_block_empty}
+                        </div>
+                      ) : (
+                        miningTelemetry.block_transactions.map((tx, i) => (
+                          <div key={i} style={{ padding: '6px 10px', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '5px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '11px' }}>
+                              {tx.sender === null || tx.sender === 'COINBASE' ? (
+                                <span style={{ color: '#10b981', fontWeight: '600' }}>
+                                  {t.block_reward} [{tx.recipient_alias || t.miner_alias_fallback}]
+                                </span>
+                              ) : (
+                                <span>
+                                  <strong style={{ color: 'var(--accent-blue-light)' }}>[{tx.sender_alias || t.sender_fallback}]</strong> {'->'} <strong style={{ color: 'var(--accent-blue-light)' }}>[{tx.recipient_alias || t.recipient_fallback}]</strong>
+                                </span>
+                              )}
+                            </span>
+                            <strong style={{ color: '#fff', fontSize: '11px' }}>+{tx.amount} Coin</strong>
+                          </div>
+                        ))
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
             </div>
+
 
             {/* Bottom Engine Metrics Footer Strip */}
             <div style={{
@@ -1863,6 +2140,73 @@ export default function App() {
               >
                 {t.btn_seed_saved}
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Reset / Switch Wallet Confirmation */}
+        {showResetModal && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.85)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '20px'
+          }}>
+            <div style={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--accent-rose)',
+              borderRadius: '14px',
+              padding: '24px',
+              maxWidth: '420px',
+              width: '100%',
+              textAlign: 'center',
+              boxShadow: '0 16px 40px rgba(0,0,0,0.8)'
+            }}>
+              <h3 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '8px', color: '#f87171' }}>
+                {t.btn_switch_or_reset}
+              </h3>
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '20px', lineHeight: '1.5' }}>
+                {t.confirm_reset}
+              </p>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  onClick={() => setShowResetModal(false)}
+                  style={{
+                    flex: 1,
+                    background: 'transparent',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text-main)',
+                    borderRadius: '6px',
+                    padding: '10px',
+                    fontWeight: '600',
+                    fontSize: '12px'
+                  }}
+                >
+                  {t.btn_cancel}
+                </button>
+                <button
+                  onClick={confirmResetWallet}
+                  style={{
+                    flex: 1,
+                    background: 'var(--accent-rose)',
+                    border: 'none',
+                    color: '#fff',
+                    borderRadius: '6px',
+                    padding: '10px',
+                    fontWeight: '700',
+                    fontSize: '12px'
+                  }}
+                >
+                  {t.btn_yes_reset}
+                </button>
+              </div>
             </div>
           </div>
         )}

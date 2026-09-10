@@ -4,14 +4,16 @@ let knownAliases = {};
 let isAutoMining = false;
 
 async function initWallet() {
-    // Automatically load this node's default identity (Port 5000 = Alice, Port 5001 = Kevin)
+    // Load this node's current identity (unlocked wallet, locked keystore or none)
     const res = await fetch("/wallet/current");
     currentWallet = await res.json();
-    document.getElementById("wallet-details").style.display = "block";
-    document.getElementById("wallet-name").innerText = currentWallet.alias;
-    document.getElementById("wallet-address").innerText = currentWallet.public_key;
-    isKeyVisible = false;
-    updateKeyDisplay();
+    if (currentWallet.status === "unlocked" && currentWallet.public_key) {
+        document.getElementById("wallet-details").style.display = "block";
+        document.getElementById("wallet-name").innerText = currentWallet.alias;
+        document.getElementById("wallet-address").innerText = currentWallet.public_key;
+        isKeyVisible = false;
+        updateKeyDisplay();
+    }
     refreshAll();
 }
 
@@ -131,8 +133,22 @@ function onRecipientSelect(addr) {
 }
 
 async function createWallet() {
-    const res = await fetch("/wallet/new", { method: "POST" });
-    currentWallet = await res.json();
+    const password = prompt("Set a password to encrypt the local keystore (min 4 chars):");
+    if (!password || password.length < 4) {
+        alert("Password must be at least 4 characters long!");
+        return;
+    }
+    const res = await fetch("/wallet/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+        alert(data.error || "Failed to create wallet");
+        return;
+    }
+    currentWallet = data;
     document.getElementById("wallet-details").style.display = "block";
     document.getElementById("wallet-name").innerText = currentWallet.alias;
     document.getElementById("wallet-address").innerText = currentWallet.public_key;
@@ -149,11 +165,11 @@ function togglePrivateKey() {
 function updateKeyDisplay() {
     const btn = document.getElementById("eye-btn");
     const el = document.getElementById("wallet-privkey");
-    if (!currentWallet) return;
+    if (!currentWallet || !currentWallet.public_key) return;
 
     if (isKeyVisible) {
-        btn.innerText = "🔒 Hide Key";
-        el.innerText = `d: ${currentWallet.private_key[0]} | n: ${currentWallet.private_key[1]}`;
+        btn.innerText = "🔒 Hide Seed";
+        el.innerText = currentWallet.mnemonic || "(seed phrase not available - wallet is locked)";
     } else {
         btn.innerText = "👁️ Show Key";
         el.innerText = "••••••••••••••••••••••••••••";
@@ -241,8 +257,6 @@ async function sendTransaction() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-            private_key: currentWallet.private_key,
-            sender: currentWallet.public_key,
             recipient: recipient,
             amount: amount
         })

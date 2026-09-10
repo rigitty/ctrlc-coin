@@ -95,9 +95,11 @@ class Wallet:
         seed = hashlib.sha256(clean_words.encode("utf-8")).digest()
         
         p, next_c = get_deterministic_prime(seed, 0)
-        q, _ = get_deterministic_prime(seed, next_c)
+        q, next_c2 = get_deterministic_prime(seed, next_c)
         while q == p:
-            q, _ = get_deterministic_prime(seed, _ + 1)
+            # get_deterministic_prime already returns the counter AFTER the
+            # successful one, so resume from it directly (no +1 skip).
+            q, next_c2 = get_deterministic_prime(seed, next_c2)
 
         n = p * q
         phi = (p - 1) * (q - 1)

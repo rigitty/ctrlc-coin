@@ -109,7 +109,13 @@ class MiningTelemetry:
         self.hash_rate = 0
         self.recent_nonces = collections.deque(maxlen=40)
         self.mining_logs = collections.deque(maxlen=120)
+        self.block_transactions = []
         self.last_update = time.time()
+
+    def set_block_transactions(self, txs):
+        """Update the previewed block transactions from any thread (e.g. on win)."""
+        with self.lock:
+            self.block_transactions = list(txs or [])
 
     def add_log(self, text, log_type="pow"):
         t_str = time.strftime("%H:%M:%S")
@@ -119,12 +125,13 @@ class MiningTelemetry:
             "text": text
         })
 
-    def start_mining(self, block_index, difficulty, miner_alias):
+    def start_mining(self, block_index, difficulty, miner_alias, block_transactions=None):
         with self.lock:
             self.is_mining = True
             self.status = "mining"
             self.block_index = block_index
             self.difficulty = difficulty
+            self.block_transactions = block_transactions or []
             self.status_text_tr = f"[POW] Blok #{block_index} için Nonce taranıyor... (Hedef: {'0'*difficulty})"
             self.status_text_en = f"[POW] Mining Block #{block_index}... (Target: {'0'*difficulty})"
             self.add_log(f"[START] Blok #{block_index} kazımı başlatıldı. Hedef zorluk: {difficulty} ({'0'*difficulty})", "start")
@@ -143,6 +150,13 @@ class MiningTelemetry:
                 "hash": hsh,
                 "time": time.strftime("%H:%M:%S")
             })
+
+            # Live preview: keep the "Current Block" tab in sync with the mempool
+            # while we hash, so transactions sent mid-round show up immediately.
+            try:
+                self.block_transactions = build_candidate_tx_list()
+            except Exception:
+                pass
 
             if won:
                 self.status = "nonce_found"
@@ -200,6 +214,7 @@ class MiningTelemetry:
         with self.lock:
             self.is_mining = False
             self.hash_rate = 0
+            self.block_transactions = []
             if not has_wallet:
                 self.status = "idle"
                 self.status_text_tr = "[WARN] Cüzdan kilitli. Madencilik için cüzdanınızı açın."
@@ -227,7 +242,8 @@ class MiningTelemetry:
                 "last_hash": self.last_hash,
                 "hash_rate": self.hash_rate,
                 "recent_nonces": list(self.recent_nonces),
-                "logs": list(self.mining_logs)
+                "logs": list(self.mining_logs),
+                "block_transactions": list(self.block_transactions)
             }
 
 mining_telemetry = MiningTelemetry()
@@ -243,6 +259,33 @@ def get_or_create_alias(address):
     if not address or address == "COINBASE":
         return "COINBASE"
     return ALIASES.get(address, format_address(address))
+
+def build_candidate_tx_list():
+    """Live list of user transactions that will be sealed into the next block.
+    The coinbase mining reward is deliberately NOT included here — the "Current
+    Block" preview shows only real transfers (rewards stay visible in the
+    Blockchain explorer where they legitimately belong)."""
+    txs = []
+    with blockchain.lock:
+        pending = list(blockchain.pending_transactions)
+    for tx in pending:
+        if tx.sender is not None:
+            t_dict = tx.to_dict()
+            t_dict["sender_alias"] = get_or_create_alias(t_dict.get("sender"))
+            t_dict["recipient_alias"] = get_or_create_alias(t_dict.get("recipient"))
+            txs.append(t_dict)
+    return txs
+
+def build_block_user_tx_list(block):
+    """User transactions (no coinbase) of an already-mined block, with aliases."""
+    txs = []
+    for tx in block.transactions:
+        if tx.sender is not None:
+            t_dict = tx.to_dict()
+            t_dict["sender_alias"] = get_or_create_alias(t_dict.get("sender"))
+            t_dict["recipient_alias"] = get_or_create_alias(t_dict.get("recipient"))
+            txs.append(t_dict)
+    return txs
 
 def sync_chain_with_peers():
     for peer in list(peers):
@@ -260,7 +303,7 @@ def sync_chain_with_peers():
                 for b_data in peer_chain_data:
                     txs = []
                     for tx_item in b_data["transactions"]:
-                        t = Transaction(tx_item["sender"], tx_item["recipient"], tx_item["amount"])
+                        t = Transaction(tx_item["sender"], tx_item["recipient"], tx_item["amount"], timestamp=tx_item.get("timestamp"))
                         t.signature = tx_item.get("signature")
                         txs.append(t)
                     b = Block(
@@ -331,7 +374,8 @@ def auto_miner_loop():
                 mining_telemetry.start_mining(
                     block_index=candidate_index,
                     difficulty=target_diff,
-                    miner_alias=get_current_alias()
+                    miner_alias=get_current_alias(),
+                    block_transactions=build_candidate_tx_list()
                 )
                 log_terminal(f"Auto-Miner: Searching Block #{candidate_index} (Diff: {target_diff})...", "mine")
 
@@ -359,6 +403,7 @@ def auto_miner_loop():
                     "transactions": [tx.to_dict() for tx in new_block.transactions]
                 }
                 mining_telemetry.on_nonce_found(new_block.index, new_block.nonce, new_block.hash)
+                mining_telemetry.set_block_transactions(build_block_user_tx_list(new_block))
                 mining_telemetry.on_block_broadcast(new_block.index, len(peers), reward=blockchain.current_mining_reward)
                 log_terminal(f"Auto-Miner: WON Block #{new_block.index} (Nonce: {new_block.nonce}, Diff: {new_block.difficulty})", "mine")
                 threading.Thread(target=broadcast_block_to_peers, args=(block_dict,)).start()
@@ -706,7 +751,7 @@ class BlockchainHTTPHandler(BaseHTTPRequestHandler):
                         break
 
                 amount = float(body.get("amount", 0))
-                tx = Transaction(active_node_wallet.public_key, recipient, amount)
+                tx = Transaction(active_node_wallet.public_key, recipient, amount, timestamp=time.time())
                 tx.sign_transaction(active_node_wallet)
                 blockchain.add_transaction(tx)
 
@@ -728,7 +773,7 @@ class BlockchainHTTPHandler(BaseHTTPRequestHandler):
                 self._send_json_response({"error": "Missing transaction fields"}, 400)
                 return
 
-            tx = Transaction(body["sender"], body["recipient"], body["amount"])
+            tx = Transaction(body["sender"], body["recipient"], float(body["amount"]), timestamp=body.get("timestamp"))
             tx.signature = body["signature"]
 
             try:
@@ -767,7 +812,8 @@ class BlockchainHTTPHandler(BaseHTTPRequestHandler):
             mining_telemetry.start_mining(
                 block_index=candidate_index,
                 difficulty=target_diff,
-                miner_alias=miner_name
+                miner_alias=miner_name,
+                block_transactions=build_candidate_tx_list()
             )
 
             def on_progress(block_idx, nonce, hsh, hash_rate, diff, won=False):
@@ -795,6 +841,7 @@ class BlockchainHTTPHandler(BaseHTTPRequestHandler):
             }
 
             mining_telemetry.on_nonce_found(new_block.index, new_block.nonce, new_block.hash)
+            mining_telemetry.set_block_transactions(build_block_user_tx_list(new_block))
             mining_telemetry.on_block_broadcast(new_block.index, len(peers), reward=blockchain.current_mining_reward)
             log_terminal(f"Mined Block #{new_block.index}! Nonce: {new_block.nonce} in {stats['duration']}s", "mine")
             threading.Thread(target=broadcast_block_to_peers, args=(block_dict,)).start()
@@ -830,7 +877,7 @@ class BlockchainHTTPHandler(BaseHTTPRequestHandler):
 
             txs = []
             for tx_item in b_data.get("transactions", []):
-                t = Transaction(tx_item["sender"], tx_item["recipient"], tx_item["amount"])
+                t = Transaction(tx_item["sender"], tx_item["recipient"], tx_item["amount"], timestamp=tx_item.get("timestamp"))
                 t.signature = tx_item.get("signature")
                 txs.append(t)
 
@@ -848,6 +895,7 @@ class BlockchainHTTPHandler(BaseHTTPRequestHandler):
             if status == "accepted":
                 save_node_state()
                 mining_telemetry.on_peer_block_accepted(candidate_block.index, remote_miner_alias)
+                mining_telemetry.set_block_transactions(build_block_user_tx_list(candidate_block))
                 log_terminal(f"Accepted winning Block #{candidate_block.index} from peer! Appended to chain.", "p2p")
                 self._send_json_response({"message": "Block accepted and appended to local chain"}, 200)
             elif status == "duplicate":

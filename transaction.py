@@ -2,14 +2,21 @@ import hashlib
 from wallet import Wallet
 
 class Transaction:
-    def __init__(self, sender, recipient, amount, signature=None):
+    def __init__(self, sender, recipient, amount, signature=None, timestamp=None):
         self.sender = sender
         self.recipient = recipient
         self.amount = amount
         self.signature = signature
+        # Unique per-creation marker so two identical transfers never collide.
+        # Legacy transactions (loaded from old chaindata) keep timestamp=None,
+        # which preserves their original hash exactly.
+        self.timestamp = timestamp
 
     def calculate_hash(self):
-        content = f"{self.sender}{self.recipient}{self.amount}"
+        if self.timestamp is not None:
+            content = f"{self.sender}{self.recipient}{self.amount}{self.timestamp}"
+        else:
+            content = f"{self.sender}{self.recipient}{self.amount}"
         return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
     def sign_transaction(self, signing_wallet):
@@ -38,9 +45,12 @@ class Transaction:
         return Wallet.verify(self.sender, tx_hash, self.signature)
 
     def to_dict(self):
-        return {
+        d = {
             "sender": self.sender,
             "recipient": self.recipient,
             "amount": self.amount,
             "signature": self.signature
         }
+        if self.timestamp is not None:
+            d["timestamp"] = self.timestamp
+        return d

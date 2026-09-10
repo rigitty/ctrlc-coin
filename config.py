@@ -2,9 +2,10 @@
 
 class Config:
     # Mining & Proof of Work
-    INITIAL_DIFFICULTY = 6
-    MIN_DIFFICULTY = 6               # Difficulty floor; will never drop below this value
-    ALLOW_DIFFICULTY_DECREASE = False # Set True to allow auto-decrease, False to prevent drops due to idle time
+    INITIAL_DIFFICULTY = 5
+    MIN_DIFFICULTY = 5               # Difficulty floor; will never drop below this value
+    ALLOW_DIFFICULTY_DECREASE = True # Set True to allow auto-decrease, False to prevent drops due to idle time
+    ALLOW_DIFFICULTY_INCREASE = False # Set True to allow auto-increase, False to keep difficulty pinned (e.g. for demo stability)
     ADJUSTMENT_INTERVAL = 5          # Re-evaluate difficulty every N blocks
     TARGET_TIME_PER_BLOCK = 10       # Expected seconds per block
 

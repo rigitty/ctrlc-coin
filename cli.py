@@ -1,4 +1,5 @@
-﻿import sys
+import sys
+import time
 from blockchain import Blockchain
 from wallet import Wallet
 from transaction import Transaction
@@ -18,7 +19,7 @@ def print_menu():
     print("=" * 40)
 
 def main():
-    blockchain = Blockchain(difficulty=2, mining_reward=50)
+    blockchain = Blockchain(initial_difficulty=2, initial_reward=50)
     wallets = []
     active_wallet = None
 
@@ -70,7 +71,7 @@ def main():
                 print("\nInvalid amount format.")
                 continue
 
-            tx = Transaction(active_wallet.public_key, recipient, amount)
+            tx = Transaction(active_wallet.public_key, recipient, amount, timestamp=time.time())
             try:
                 tx.sign_transaction(active_wallet)
                 blockchain.add_transaction(tx)
